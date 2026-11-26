@@ -4,9 +4,13 @@ declare(strict_types=1);
 
 namespace Tests\Support\Architecture;
 
+use Illuminate\Database\Connection;
+use Illuminate\Database\ConnectionInterface;
+use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\Facades\DB;
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\NullsafeMethodCall;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
@@ -21,11 +25,13 @@ final readonly class RawTableGuard
 
     private const array FACADES = ['DB', DB::class];
 
+    private const array CONNECTIONS = [ConnectionInterface::class, Connection::class, DatabaseManager::class];
+
     private const string MESSAGE = 'a raw table or statement without a model: reach the table through its Eloquent model; raw SQL belongs in a migration or in the one allowed lock class';
 
     /**
-     * @param list<string> $directories
-     * @param list<string> $allowedFiles
+     * @param list<string> $directories folders under the root that the tree scan reads, relative to it; some may be absent
+     * @param list<string> $allowedFiles files relative to the root that may hold raw SQL (an advisory lock has no Eloquent form)
      */
     public function __construct(
         private PhpFileInspector $inspector,
@@ -36,7 +42,7 @@ final readonly class RawTableGuard
     }
 
     /**
-     * @return list<string>
+     * @return list<string> `line N: message` per raw call in the source
      */
     public function inSource(string $source): array
     {
@@ -44,7 +50,7 @@ final readonly class RawTableGuard
     }
 
     /**
-     * @return list<string>
+     * @return list<string> `file:line: message` relative to the root
      */
     public function violations(): array
     {
@@ -76,12 +82,14 @@ final readonly class RawTableGuard
     {
         $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
         $lines = [];
+        $connections = TypedReceivers::in($statements, self::CONNECTIONS, ['db']);
 
-        foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof StaticCall || $node instanceof MethodCall) as $call) {
-            $onFacade = $call instanceof StaticCall && $this->isFacade($call);
-            $onConnection = $call instanceof MethodCall && $call->var instanceof StaticCall && $this->isFacade($call->var) && $this->name($call->var) === 'connection';
+        foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof StaticCall || $node instanceof MethodCall || $node instanceof NullsafeMethodCall) as $call) {
+            if (! $call instanceof StaticCall && ! $call instanceof MethodCall && ! $call instanceof NullsafeMethodCall) {
+                continue;
+            }
 
-            if (($onFacade || $onConnection) && in_array($this->name($call), self::RAW_METHODS, true)) {
+            if (in_array($this->name($call), self::RAW_METHODS, true) && $this->reachesDatabase($call, $connections)) {
                 $lines[] = $call->getStartLine();
             }
         }
@@ -91,12 +99,31 @@ final readonly class RawTableGuard
         return $lines;
     }
 
+    private function reachesDatabase(StaticCall|MethodCall|NullsafeMethodCall $call, TypedReceivers $connections): bool
+    {
+        if ($call instanceof StaticCall) {
+            return $this->isFacade($call);
+        }
+
+        $receiver = $call->var;
+
+        if ($receiver instanceof StaticCall) {
+            return $this->isFacade($receiver) && $this->name($receiver) === 'connection';
+        }
+
+        if (($receiver instanceof MethodCall || $receiver instanceof NullsafeMethodCall) && $this->name($receiver) === 'connection') {
+            $receiver = $receiver->var;
+        }
+
+        return $connections->holds($receiver);
+    }
+
     private function isFacade(StaticCall $call): bool
     {
         return $call->class instanceof Name && in_array(mb_ltrim($call->class->toString(), '\\'), self::FACADES, true);
     }
 
-    private function name(StaticCall|MethodCall $call): string
+    private function name(StaticCall|MethodCall|NullsafeMethodCall $call): string
     {
         return $call->name instanceof Identifier ? mb_strtolower($call->name->toString()) : '';
     }

@@ -14,6 +14,11 @@ dataset('ways to reach a table or a statement without a model', [
     'the facade, aliased' => ["<?php\nuse Illuminate\\Support\\Facades\\DB as Database;\nDatabase::table('orders')->count();", 3],
     'four statements of the facade' => ["<?php\nuse Illuminate\\Support\\Facades\\DB;\nDB::statement('vacuum'); DB::raw('1'); DB::scalar('select 1'); DB::unprepared('x');", 3],
     'a named connection' => ["<?php\nuse Illuminate\\Support\\Facades\\DB;\nDB::connection('pgsql')->table('failed_jobs')->count();", 3],
+    'a typed database manager' => ["<?php\nnamespace App;\nuse Illuminate\\Database\\DatabaseManager;\nfinal class Report { public function __construct(private DatabaseManager \$db) {} public function rows(): array { return \$this->db->table('orders')->get()->all(); } }", 4],
+    'a typed connection parameter' => ["<?php\nnamespace App;\nuse Illuminate\\Database\\ConnectionInterface;\nfinal class Report { public function run(ConnectionInterface \$db): array { return \$db->select('select 1'); } }", 4],
+    'a nullable typed connection' => ["<?php\nnamespace App;\nuse Illuminate\\Database\\Connection;\nfinal class Report { private ?Connection \$db = null; public function run(): void { \$this->db->statement('vacuum'); } }", 4],
+    'a named connection of an injected manager' => ["<?php\nnamespace App;\nuse Illuminate\\Database\\DatabaseManager;\nfinal class Report { public function run(DatabaseManager \$db): int { return \$db->connection('pgsql')->table('failed_jobs')->count(); } }", 4],
+    'the container string' => ["<?php\nnamespace App;\napp('db')->table('orders')->count();", 3],
 ]);
 
 it('recognizes every way to reach a table or a statement without a model', function (string $source, int $line): void {
@@ -28,6 +33,9 @@ dataset('calls that stay on the database facade or a model', [
     'transaction and hooks' => ["<?php\nuse Illuminate\\Support\\Facades\\DB;\nDB::transaction(fn () => 1); DB::afterCommit(fn () => 1); DB::query()->fromSub(\$q, 'sub'); DB::connection()->getPdo();"],
     'a console table and a model query' => ["<?php\n\$this->table(['Field'], \$rows); CategoryProduct::query()->toBase()->select('product_id');"],
     'a class named DB in another namespace' => ["<?php\nnamespace App\\Support;\nuse App\\Support\\DB;\nDB::table('x');"],
+    'a typed connection used for what is not raw' => ["<?php\nnamespace App;\nuse Illuminate\\Database\\ConnectionInterface;\nfinal class Report { public function run(ConnectionInterface \$db): void { \$db->transaction(fn () => 1); \$db->getPdo(); } }"],
+    'the same name untyped in another class' => ["<?php\nnamespace App;\nuse Illuminate\\Database\\ConnectionInterface;\nfinal class Typed { public function __construct(private ConnectionInterface \$db) {} }\nfinal class Other { private \$db; public function run(): void { \$this->db->table('x'); } }"],
+    'a table of a typed receiver that is not a connection' => ["<?php\nnamespace App;\nfinal class Report { public function run(Renderer \$out): void { \$out->table(['Field'], []); } }"],
 ]);
 
 it('accepts the facade calls that are not a raw table and the same method names on other receivers', function (string $source): void {

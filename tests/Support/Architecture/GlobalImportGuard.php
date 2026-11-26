@@ -4,12 +4,20 @@ declare(strict_types=1);
 
 namespace Tests\Support\Architecture;
 
+use PhpParser\Node\Identifier;
+use PhpParser\Node\Name;
+use PhpParser\Node\Stmt;
+use PhpParser\Node\Stmt\Namespace_;
+use PhpParser\Node\Stmt\Use_;
+use PhpParser\Node\UseItem;
+use PhpParser\ParserFactory;
+
 final readonly class GlobalImportGuard
 {
     private const string MESSAGE = 'imports a global class by its bare name in a file without a namespace, which PHP ignores: delete the use line and write the class as it is, or declare a namespace';
 
     /**
-     * @param list<string> $folders
+     * @param list<string> $folders folders under the root that the tree scan reads, relative to it
      */
     public function __construct(
         private PhpFileInspector $inspector,
@@ -19,19 +27,24 @@ final readonly class GlobalImportGuard
     }
 
     /**
-     * @return list<string>
+     * @return list<string> the messages for the source: none, or one
      */
     public function inSource(string $source): array
     {
-        if (preg_match('/^namespace\s/m', $source) === 1) {
-            return [];
+        $statements = new ParserFactory()->createForHostVersion()->parse($source) ?? [];
+        $scope = $this->globalScope($statements);
+
+        foreach ($scope as $statement) {
+            if ($statement instanceof Use_ && $this->hasBareName($statement)) {
+                return [self::MESSAGE];
+            }
         }
 
-        return preg_match('/^use\s+[\\\\]?[A-Za-z_]+\s*(,\s*[\\\\]?[A-Za-z_]+\s*)*;\s*$/m', $source) === 1 ? [self::MESSAGE] : [];
+        return [];
     }
 
     /**
-     * @return list<string>
+     * @return list<string> `path: message` per file
      */
     public function violations(): array
     {
@@ -40,5 +53,33 @@ final readonly class GlobalImportGuard
         sort($violations);
 
         return $violations;
+    }
+
+    /**
+     * @param array<Stmt> $statements
+     * @return array<Stmt>
+     */
+    private function globalScope(array $statements): array
+    {
+        $scope = [];
+
+        foreach ($statements as $statement) {
+            if ($statement instanceof Namespace_) {
+                if (! $statement->name instanceof Name) {
+                    array_push($scope, ...$statement->stmts);
+                }
+
+                continue;
+            }
+
+            $scope[] = $statement;
+        }
+
+        return array_values(array_filter($statements, static fn (Stmt $statement): bool => $statement instanceof Namespace_ && $statement->name instanceof Name)) === [] ? $scope : [];
+    }
+
+    private function hasBareName(Use_ $statement): bool
+    {
+        return array_any($statement->uses, fn (UseItem $item): bool => count($item->name->getParts()) === 1 && ! $item->alias instanceof Identifier);
     }
 }

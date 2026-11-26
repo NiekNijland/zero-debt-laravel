@@ -4,12 +4,16 @@ declare(strict_types=1);
 
 namespace Tests\Support\Architecture;
 
+use Illuminate\Log\Logger;
 use Illuminate\Support\Facades\Log;
 use Override;
 use PhpParser\Node;
 use PhpParser\Node\ArrayItem;
+use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\NullsafeMethodCall;
 use PhpParser\Node\Expr\StaticCall;
+use PhpParser\Node\Expr\Variable;
 use PhpParser\Node\FunctionLike;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
@@ -21,10 +25,13 @@ use PhpParser\NodeVisitor;
 use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\NodeVisitorAbstract;
 use PhpParser\ParserFactory;
+use Psr\Log\LoggerInterface;
 
 final readonly class ReportNotLogGuard
 {
     private const array LOG_FACADES = ['Log', Log::class];
+
+    private const array LOGGERS = [LoggerInterface::class, Logger::class];
 
     private const array SEVERE_LEVELS = ['warning', 'error', 'critical', 'alert', 'emergency'];
 
@@ -40,17 +47,19 @@ final readonly class ReportNotLogGuard
     }
 
     /**
-     * @return list<string>
+     * @return list<string> `line N: message` per violation in the source, in line order
      */
     public function inSource(string $source): array
     {
+        $statements = $this->statements($source);
+        $loggers = TypedReceivers::in($statements, self::LOGGERS, ['log']);
         $found = [];
 
-        foreach ($this->severeLogInCatchLines($source) as $line) {
+        foreach ($this->severeLogInCatchLines($statements, $loggers) as $line) {
             $found[$line . ':a'] = 'line ' . $line . ': ' . self::SEVERE_MESSAGE;
         }
 
-        foreach ($this->tenantIdLogKeyLines($source) as $line) {
+        foreach ($this->tenantIdLogKeyLines($statements, $loggers) as $line) {
             $found[$line . ':b'] = 'line ' . $line . ': ' . self::TENANT_MESSAGE;
         }
 
@@ -60,7 +69,7 @@ final readonly class ReportNotLogGuard
     }
 
     /**
-     * @return list<string>
+     * @return list<string> `file:` before each message of the source, relative to the root
      */
     public function violations(): array
     {
@@ -77,31 +86,39 @@ final readonly class ReportNotLogGuard
         return $violations;
     }
 
-    private static function logMethod(StaticCall|MethodCall $call): ?string
+    private static function onLog(StaticCall|MethodCall|NullsafeMethodCall|FuncCall $call, TypedReceivers $loggers): bool
     {
-        if (! $call->name instanceof Identifier) {
-            return null;
+        if ($call instanceof FuncCall) {
+            return self::isLoggerHelper($call) && $call->getArgs() !== [];
         }
 
-        $receiver = $call instanceof MethodCall ? $call->var : $call;
+        $receiver = $call instanceof StaticCall ? $call : $call->var;
 
-        if ($receiver instanceof StaticCall && $receiver->class instanceof Name && in_array($receiver->class->toString(), self::LOG_FACADES, true)) {
-            return $call->name->toLowerString();
+        while ($receiver instanceof MethodCall || $receiver instanceof NullsafeMethodCall) {
+            $receiver = $receiver->var;
         }
 
-        return null;
+        return ($receiver instanceof StaticCall && $receiver->class instanceof Name && in_array(mb_ltrim($receiver->class->toString(), '\\'), self::LOG_FACADES, true))
+            || ($receiver instanceof FuncCall && self::isLoggerHelper($receiver))
+            || $loggers->holds($receiver);
+    }
+
+    private static function isLoggerHelper(FuncCall $call): bool
+    {
+        return $call->name instanceof Name && mb_strtolower($call->name->getLast()) === 'logger';
     }
 
     /**
+     * @param list<Node> $statements
      * @return list<int>
      */
-    private function severeLogInCatchLines(string $source): array
+    private function severeLogInCatchLines(array $statements, TypedReceivers $loggers): array
     {
         $lines = [];
 
-        foreach (new NodeFinder()->findInstanceOf($this->statements($source), Catch_::class) as $catch) {
-            foreach ($this->callsOutsideClosures($catch->stmts) as $call) {
-                if (in_array(self::logMethod($call), self::SEVERE_LEVELS, true)) {
+        foreach (new NodeFinder()->findInstanceOf($statements, Catch_::class) as $catch) {
+            foreach ($this->callsOfTheCatch($catch) as $call) {
+                if (in_array($this->level($call, $loggers), self::SEVERE_LEVELS, true)) {
                     $lines[] = $call->getStartLine();
                 }
             }
@@ -113,15 +130,16 @@ final readonly class ReportNotLogGuard
     }
 
     /**
+     * @param list<Node> $statements
      * @return list<int>
      */
-    private function tenantIdLogKeyLines(string $source): array
+    private function tenantIdLogKeyLines(array $statements, TypedReceivers $loggers): array
     {
         $lines = [];
         $finder = new NodeFinder();
 
-        foreach ($finder->find($this->statements($source), static fn (Node $node): bool => ($node instanceof StaticCall || $node instanceof MethodCall) && self::logMethod($node) !== null) as $call) {
-            if (! $call instanceof StaticCall && ! $call instanceof MethodCall) {
+        foreach ($finder->find($statements, static fn (Node $node): bool => ($node instanceof StaticCall || $node instanceof MethodCall || $node instanceof NullsafeMethodCall || $node instanceof FuncCall) && self::onLog($node, $loggers)) as $call) {
+            if (! $call instanceof StaticCall && ! $call instanceof MethodCall && ! $call instanceof NullsafeMethodCall && ! $call instanceof FuncCall) {
                 continue;
             }
 
@@ -138,34 +156,61 @@ final readonly class ReportNotLogGuard
     }
 
     /**
-     * @param array<Node> $statements
-     * @return list<StaticCall|MethodCall>
+     * @return list<StaticCall|MethodCall|NullsafeMethodCall|FuncCall>
      */
-    private function callsOutsideClosures(array $statements): array
+    private function callsOfTheCatch(Catch_ $catch): array
     {
-        $visitor = new class() extends NodeVisitorAbstract
+        $caught = $catch->var instanceof Variable && is_string($catch->var->name) ? $catch->var->name : null;
+        $visitor = new class($caught) extends NodeVisitorAbstract
         {
-            /** @var list<StaticCall|MethodCall> */
+            /** @var list<StaticCall|MethodCall|NullsafeMethodCall|FuncCall> */
             public array $calls = [];
+
+            public function __construct(private readonly ?string $caught)
+            {
+            }
 
             #[Override]
             public function enterNode(Node $node): ?int
             {
-                if ($node instanceof FunctionLike) {
+                if ($node instanceof FunctionLike && ! $this->mentionsCaught($node)) {
                     return NodeVisitor::DONT_TRAVERSE_CHILDREN;
                 }
 
-                if ($node instanceof StaticCall || $node instanceof MethodCall) {
+                if ($node instanceof StaticCall || $node instanceof MethodCall || $node instanceof NullsafeMethodCall || $node instanceof FuncCall) {
                     $this->calls[] = $node;
                 }
 
                 return null;
             }
+
+            private function mentionsCaught(Node $function): bool
+            {
+                return $this->caught !== null
+                    && new NodeFinder()->findFirst([$function], fn (Node $node): bool => $node instanceof Variable && $node->name === $this->caught) instanceof Node;
+            }
         };
 
-        new NodeTraverser($visitor)->traverse($statements);
+        new NodeTraverser($visitor)->traverse($catch->stmts);
 
         return $visitor->calls;
+    }
+
+    private function level(StaticCall|MethodCall|NullsafeMethodCall|FuncCall $call, TypedReceivers $loggers): ?string
+    {
+        if ($call instanceof FuncCall || ! $call->name instanceof Identifier || ! self::onLog($call, $loggers)) {
+            return null;
+        }
+
+        $name = $call->name->toLowerString();
+
+        if ($name !== 'log') {
+            return $name;
+        }
+
+        $first = ($call->getArgs()[0] ?? null)?->value;
+
+        return $first instanceof String_ ? mb_strtolower($first->value) : null;
     }
 
     /**
