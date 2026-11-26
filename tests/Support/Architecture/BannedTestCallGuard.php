@@ -18,7 +18,6 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\Int_;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\NodeFinder;
-use PhpParser\ParserFactory;
 
 final readonly class BannedTestCallGuard
 {
@@ -127,7 +126,7 @@ final readonly class BannedTestCallGuard
     private function chainedOnATest(string $source): array
     {
         $found = [];
-        $statements = new ParserFactory()->createForHostVersion()->parse($source) ?? [];
+        $statements = PhpSource::parse($source);
 
         foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof MethodCall || $node instanceof NullsafeMethodCall) as $call) {
             if (! $call instanceof MethodCall && ! $call instanceof NullsafeMethodCall || ! $call->name instanceof Identifier) {

@@ -29,7 +29,6 @@ use PhpParser\Node\Stmt\Interface_;
 use PhpParser\Node\Stmt\Trait_;
 use PhpParser\Node\Stmt\Use_;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor;
 use PhpParser\NodeVisitorAbstract;
 use Tests\Support\RecursiveFiles;
@@ -101,7 +100,7 @@ final class PhpFileInspector
             }
         };
 
-        new NodeTraverser($visitor)->traverse($this->statements($file));
+        PhpSource::traverse($this->statements($file), $visitor);
 
         return ['inside' => array_values(array_unique($visitor->inside)), 'outside' => array_values(array_unique($visitor->outside))];
     }

@@ -17,9 +17,6 @@ use PhpParser\Node\NullableType;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 final readonly class ThinControllerGuard
 {
@@ -49,7 +46,7 @@ final readonly class ThinControllerGuard
      */
     public function inSource(string $source): array
     {
-        $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        $statements = PhpSource::resolved($source);
         $finder = new NodeFinder();
         $collaborators = $this->collaborators($finder, $statements);
         $found = [];

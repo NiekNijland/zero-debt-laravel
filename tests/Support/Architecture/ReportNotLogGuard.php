@@ -20,11 +20,8 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Catch_;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitor;
-use PhpParser\NodeVisitor\NameResolver;
 use PhpParser\NodeVisitorAbstract;
-use PhpParser\ParserFactory;
 use Psr\Log\LoggerInterface;
 
 final readonly class ReportNotLogGuard
@@ -191,7 +188,7 @@ final readonly class ReportNotLogGuard
             }
         };
 
-        new NodeTraverser($visitor)->traverse($catch->stmts);
+        PhpSource::traverse($catch->stmts, $visitor);
 
         return $visitor->calls;
     }
@@ -218,8 +215,6 @@ final readonly class ReportNotLogGuard
      */
     private function statements(string $source): array
     {
-        $statements = new ParserFactory()->createForHostVersion()->parse($source) ?? [];
-
-        return array_values(new NodeTraverser(new NameResolver())->traverse($statements));
+        return PhpSource::resolved($source);
     }
 }

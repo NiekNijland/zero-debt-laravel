@@ -20,9 +20,6 @@ use PhpParser\Node\Scalar\Int_;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 final readonly class RateLimiterGuard
 {
@@ -53,7 +50,7 @@ final readonly class RateLimiterGuard
      */
     public function inSource(string $source): array
     {
-        $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        $statements = PhpSource::resolved($source);
         $finder = new NodeFinder();
         $violations = [];
 

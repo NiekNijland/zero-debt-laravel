@@ -17,12 +17,14 @@ final readonly class DocumentedPathGuard
      * @param list<string> $sourceRoots the top folders whose files a guide may name, relative to the root
      * @param list<string> $guides the guide files, relative to the root; every file with the nested guide name under a source root is a guide too
      * @param string $nestedGuide the file name of a guide that sits in many folders
+     * @param list<string> $foreignRoots top folders of another repository (the kit's `tools`, `ci`) that a guide may name and the project does not have: such a path is not checked
      */
     public function __construct(
         private string $root,
         private array $sourceRoots,
         private array $guides,
         private string $nestedGuide,
+        private array $foreignRoots = [],
     ) {
     }
 
@@ -75,7 +77,12 @@ final readonly class DocumentedPathGuard
 
         foreach ($guides as $guide) {
             foreach (self::pathsIn((string) file_get_contents($this->root . '/' . $guide)) as [$line, $path]) {
-                $known = in_array(explode('/', $path)[0], $this->sourceRoots, true);
+                $top = explode('/', $path)[0];
+                $known = in_array($top, $this->sourceRoots, true);
+
+                if (in_array($top, $this->foreignRoots, true) && ! is_dir($this->root . '/' . $top)) {
+                    continue;
+                }
 
                 if ($known && ! file_exists($this->root . '/' . mb_rtrim($path, '/'))) {
                     $violations[] = '[documented-path] ' . $guide . ':' . $line . ': `' . $path . '` does not exist: name the file or folder as it is now, or write an example with a placeholder such as <Name>';

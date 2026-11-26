@@ -19,13 +19,16 @@ use PhpParser\Node\Scalar\InterpolatedString;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\NodeFinder;
-use PhpParser\ParserFactory;
 use Tests\Support\Globs;
 
 final readonly class ConcurrentIndexGuard
 {
     private const string MESSAGE = 'an index or foreign key built on a table that already exists, which blocks writes: create the index with CREATE INDEX CONCURRENTLY outside a transaction ($withinTransaction = false), or add the foreign key NOT VALID and validate it afterwards';
 
+    /**
+     * @param string $folder the migration folder under the root
+     * @param string $firstFile the file name (or its date prefix) of the first migration under the rule
+     */
     public function __construct(
         private string $root,
         private string $folder,
@@ -34,7 +37,7 @@ final readonly class ConcurrentIndexGuard
     }
 
     /**
-     * @return list<string>
+     * @return list<string> `table: message` per table of the migration that gets a blocking index
      */
     public function inSource(string $source): array
     {
@@ -42,7 +45,7 @@ final readonly class ConcurrentIndexGuard
     }
 
     /**
-     * @return list<string>
+     * @return list<string> `file: table: message` per blocking index in a migration from the first file on, relative to the root
      */
     public function violations(): array
     {
@@ -65,6 +68,63 @@ final readonly class ConcurrentIndexGuard
         sort($violations);
 
         return $violations;
+    }
+
+    /**
+     * @return list<Node\Stmt>
+     */
+    private function upStatements(NodeFinder $finder, string $source): array
+    {
+        $methods = [];
+
+        foreach ($finder->findInstanceOf(PhpSource::parse($source), ClassMethod::class) as $method) {
+            $methods[mb_strtolower($method->name->toString())] = $method->stmts ?? [];
+        }
+
+        $statements = [];
+        $pending = ['up'];
+        $followed = [];
+
+        while ($pending !== []) {
+            $name = array_pop($pending);
+
+            if (isset($followed[$name]) || ! isset($methods[$name])) {
+                continue;
+            }
+
+            $followed[$name] = true;
+            array_push($statements, ...$methods[$name]);
+
+            foreach ($finder->find($methods[$name], static fn (Node $node): bool => (
+                ($node instanceof MethodCall && $node->var instanceof Variable && $node->var->name === 'this')
+                || ($node instanceof StaticCall && $node->class instanceof Name && in_array(mb_strtolower($node->class->toString()), ['self', 'static'], true))
+            ) && $node->name instanceof Identifier) as $call) {
+                if (($call instanceof MethodCall || $call instanceof StaticCall) && $call->name instanceof Identifier) {
+                    $pending[] = mb_strtolower($call->name->toString());
+                }
+            }
+        }
+
+        return $statements;
+    }
+
+    /**
+     * @param list<Node\Stmt> $statements
+     * @return list<string>
+     */
+    private function sqlStrings(NodeFinder $finder, array $statements): array
+    {
+        $sql = [];
+
+        foreach ($finder->find($statements, static fn (Node $node): bool => $node instanceof String_ || $node instanceof InterpolatedString) as $string) {
+            if ($string instanceof String_) {
+                $sql[] = $string->value;
+            } elseif ($string instanceof InterpolatedString) {
+                $sql[] = implode('?', array_map(static fn (Node $part): string => $part instanceof InterpolatedStringPart ? $part->value : '', $string->parts));
+            }
+        }
+
+        return $sql;
     }
 
     /**
@@ -126,62 +186,5 @@ final readonly class ConcurrentIndexGuard
         }
 
         return array_values(array_unique(array_diff($blocking, $created)));
-    }
-
-    /**
-     * @return list<Node\Stmt>
-     */
-    private function upStatements(NodeFinder $finder, string $source): array
-    {
-        $methods = [];
-
-        foreach ($finder->findInstanceOf(new ParserFactory()->createForHostVersion()->parse($source) ?? [], ClassMethod::class) as $method) {
-            $methods[mb_strtolower($method->name->toString())] = $method->stmts ?? [];
-        }
-
-        $statements = [];
-        $pending = ['up'];
-        $followed = [];
-
-        while ($pending !== []) {
-            $name = array_pop($pending);
-
-            if (isset($followed[$name]) || ! isset($methods[$name])) {
-                continue;
-            }
-
-            $followed[$name] = true;
-            array_push($statements, ...$methods[$name]);
-
-            foreach ($finder->find($methods[$name], static fn (Node $node): bool => (
-                ($node instanceof MethodCall && $node->var instanceof Variable && $node->var->name === 'this')
-                || ($node instanceof StaticCall && $node->class instanceof Name && in_array(mb_strtolower($node->class->toString()), ['self', 'static'], true))
-            ) && $node->name instanceof Identifier) as $call) {
-                if (($call instanceof MethodCall || $call instanceof StaticCall) && $call->name instanceof Identifier) {
-                    $pending[] = mb_strtolower($call->name->toString());
-                }
-            }
-        }
-
-        return $statements;
-    }
-
-    /**
-     * @param list<Node\Stmt> $statements
-     * @return list<string>
-     */
-    private function sqlStrings(NodeFinder $finder, array $statements): array
-    {
-        $sql = [];
-
-        foreach ($finder->find($statements, static fn (Node $node): bool => $node instanceof String_ || $node instanceof InterpolatedString) as $string) {
-            if ($string instanceof String_) {
-                $sql[] = $string->value;
-            } elseif ($string instanceof InterpolatedString) {
-                $sql[] = implode('?', array_map(static fn (Node $part): string => $part instanceof InterpolatedStringPart ? $part->value : '', $string->parts));
-            }
-        }
-
-        return $sql;
     }
 }

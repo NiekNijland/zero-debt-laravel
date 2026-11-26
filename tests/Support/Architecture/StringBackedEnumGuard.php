@@ -6,9 +6,6 @@ namespace Tests\Support\Architecture;
 
 use PhpParser\Node\Stmt\Enum_;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 final readonly class StringBackedEnumGuard
 {
@@ -40,7 +37,7 @@ final readonly class StringBackedEnumGuard
      */
     public function inSource(string $source): array
     {
-        $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        $statements = PhpSource::resolved($source);
         $violations = [];
 
         foreach (new NodeFinder()->findInstanceOf($statements, Enum_::class) as $enum) {

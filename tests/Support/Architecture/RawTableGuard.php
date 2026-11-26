@@ -15,9 +15,6 @@ use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 final readonly class RawTableGuard
 {
@@ -75,30 +72,6 @@ final readonly class RawTableGuard
         return $violations;
     }
 
-    /**
-     * @return list<int>
-     */
-    private function lines(string $source): array
-    {
-        $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
-        $lines = [];
-        $connections = TypedReceivers::in($statements, self::CONNECTIONS, ['db']);
-
-        foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof StaticCall || $node instanceof MethodCall || $node instanceof NullsafeMethodCall) as $call) {
-            if (! $call instanceof StaticCall && ! $call instanceof MethodCall && ! $call instanceof NullsafeMethodCall) {
-                continue;
-            }
-
-            if (in_array($this->name($call), self::RAW_METHODS, true) && $this->reachesDatabase($call, $connections)) {
-                $lines[] = $call->getStartLine();
-            }
-        }
-
-        sort($lines);
-
-        return $lines;
-    }
-
     private function reachesDatabase(StaticCall|MethodCall|NullsafeMethodCall $call, TypedReceivers $connections): bool
     {
         if ($call instanceof StaticCall) {
@@ -126,5 +99,29 @@ final readonly class RawTableGuard
     private function name(StaticCall|MethodCall|NullsafeMethodCall $call): string
     {
         return $call->name instanceof Identifier ? mb_strtolower($call->name->toString()) : '';
+    }
+
+    /**
+     * @return list<int>
+     */
+    private function lines(string $source): array
+    {
+        $statements = PhpSource::resolved($source);
+        $lines = [];
+        $connections = TypedReceivers::in($statements, self::CONNECTIONS, ['db']);
+
+        foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof StaticCall || $node instanceof MethodCall || $node instanceof NullsafeMethodCall) as $call) {
+            if (! $call instanceof StaticCall && ! $call instanceof MethodCall && ! $call instanceof NullsafeMethodCall) {
+                continue;
+            }
+
+            if (in_array($this->name($call), self::RAW_METHODS, true) && $this->reachesDatabase($call, $connections)) {
+                $lines[] = $call->getStartLine();
+            }
+        }
+
+        sort($lines);
+
+        return $lines;
     }
 }

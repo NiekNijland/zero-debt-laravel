@@ -9,7 +9,6 @@ use PhpParser\Node\Expr\Exit_;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Name;
 use PhpParser\NodeFinder;
-use PhpParser\ParserFactory;
 
 final readonly class ExitGuard
 {
@@ -48,7 +47,7 @@ final readonly class ExitGuard
     {
         $violations = [];
 
-        $exits = new NodeFinder()->find(new ParserFactory()->createForHostVersion()->parse($source) ?? [], static fn (Node $node): bool => $node instanceof Exit_
+        $exits = new NodeFinder()->find(PhpSource::parse($source), static fn (Node $node): bool => $node instanceof Exit_
             || ($node instanceof FuncCall && $node->name instanceof Name && in_array($node->name->toLowerString(), ['exit', 'die'], true)));
 
         foreach ($exits as $exit) {

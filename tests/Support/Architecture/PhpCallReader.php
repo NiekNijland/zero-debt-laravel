@@ -23,9 +23,6 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 use PhpParser\PrettyPrinter\Standard;
 
 final class PhpCallReader
@@ -119,7 +116,7 @@ final class PhpCallReader
      */
     public static function calls(string $source): array
     {
-        $statements = new NodeTraverser(new NameResolver(null, ['preserveOriginalNames' => true]))->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        $statements = PhpSource::resolved($source, preserveOriginal: true);
         $printer = new Standard();
         $calls = [];
 
@@ -175,7 +172,7 @@ final class PhpCallReader
      */
     public static function instantiations(string $source): array
     {
-        $statements = new NodeTraverser(new NameResolver(null, ['preserveOriginalNames' => true]))->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        $statements = PhpSource::resolved($source, preserveOriginal: true);
         $printer = new Standard();
         $found = [];
 

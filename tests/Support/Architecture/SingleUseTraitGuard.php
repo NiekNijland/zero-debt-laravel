@@ -9,9 +9,6 @@ use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\Trait_;
 use PhpParser\Node\Stmt\TraitUse;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 final readonly class SingleUseTraitGuard
 {
@@ -35,7 +32,7 @@ final readonly class SingleUseTraitGuard
         $finder = new NodeFinder();
 
         foreach ($sources as $index => $source) {
-            $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+            $statements = PhpSource::resolved($source);
 
             foreach ($finder->findInstanceOf($statements, ClassLike::class) as $class) {
                 if ($class instanceof Trait_ && $class->namespacedName instanceof Name) {

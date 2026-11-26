@@ -10,7 +10,6 @@ use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\Node\Stmt\Use_;
 use PhpParser\Node\UseItem;
-use PhpParser\ParserFactory;
 
 final readonly class GlobalImportGuard
 {
@@ -31,8 +30,8 @@ final readonly class GlobalImportGuard
      */
     public function inSource(string $source): array
     {
-        $statements = new ParserFactory()->createForHostVersion()->parse($source) ?? [];
-        $scope = $this->globalScope($statements);
+        $statements = PhpSource::parse($source);
+        $scope = self::globalScope($statements);
 
         foreach ($scope as $statement) {
             if ($statement instanceof Use_ && $this->hasBareName($statement)) {

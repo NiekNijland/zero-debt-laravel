@@ -8,7 +8,6 @@ use PhpParser\Node\Stmt;
 use PhpParser\Node\Stmt\Enum_;
 use PhpParser\Node\Stmt\EnumCase;
 use PhpParser\NodeFinder;
-use PhpParser\ParserFactory;
 
 final readonly class EnumCaseGuard
 {
@@ -71,6 +70,6 @@ final readonly class EnumCaseGuard
      */
     private function statements(string $source): array
     {
-        return array_values(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        return PhpSource::parse($source);
     }
 }

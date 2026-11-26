@@ -11,9 +11,6 @@ use PhpParser\Node\Stmt\ClassLike;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\Node\Stmt\Interface_;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 use ReflectionClass;
 use ReflectionMethod;
 
@@ -37,7 +34,7 @@ final readonly class ClassGraph
         $types = [];
 
         foreach ($sources as $path => $source) {
-            $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+            $statements = PhpSource::resolved($source);
 
             foreach (new NodeFinder()->findInstanceOf($statements, ClassLike::class) as $type) {
                 $info = self::describe($type, $path);

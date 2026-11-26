@@ -17,9 +17,6 @@ use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\InterpolatedString;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 final readonly class NamedRouteUrlGuard
 {
@@ -77,7 +74,7 @@ final readonly class NamedRouteUrlGuard
     private function inSource(string $source): array
     {
         $found = [];
-        $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        $statements = PhpSource::resolved($source);
 
         foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof MethodCall || $node instanceof NullsafeMethodCall || $node instanceof FuncCall) as $call) {
             $verb = $this->verb($call);

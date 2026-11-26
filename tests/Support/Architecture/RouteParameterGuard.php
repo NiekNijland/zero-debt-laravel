@@ -8,7 +8,6 @@ use PhpParser\Node;
 use PhpParser\Node\InterpolatedStringPart;
 use PhpParser\Node\Scalar\String_;
 use PhpParser\NodeFinder;
-use PhpParser\ParserFactory;
 
 final readonly class RouteParameterGuard
 {
@@ -40,7 +39,7 @@ final readonly class RouteParameterGuard
      */
     public function inSource(string $source): array
     {
-        $statements = new ParserFactory()->createForHostVersion()->parse($source) ?? [];
+        $statements = PhpSource::parse($source);
         $violations = [];
 
         foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof String_ || $node instanceof InterpolatedStringPart) as $text) {

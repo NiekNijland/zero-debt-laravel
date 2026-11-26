@@ -14,7 +14,6 @@ use PhpParser\Node\Scalar\String_;
 use PhpParser\Node\Stmt\Class_;
 use PhpParser\Node\Stmt\ClassMethod;
 use PhpParser\NodeFinder;
-use PhpParser\ParserFactory;
 use Tests\Support\Globs;
 
 final readonly class MigrationShapeGuard
@@ -60,7 +59,7 @@ final readonly class MigrationShapeGuard
         $finder = new NodeFinder();
         $violations = [];
 
-        foreach ($finder->findInstanceOf(new ParserFactory()->createForHostVersion()->parse($source) ?? [], Class_::class) as $class) {
+        foreach ($finder->findInstanceOf(PhpSource::parse($source), Class_::class) as $class) {
             if ($class->getMethod('up') === null) {
                 continue;
             }

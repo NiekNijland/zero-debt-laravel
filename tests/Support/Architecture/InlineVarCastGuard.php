@@ -20,9 +20,7 @@ use PhpParser\Node\Stmt\Namespace_;
 use PhpParser\Node\Stmt\Property;
 use PhpParser\Node\Stmt\TraitUse;
 use PhpParser\Node\Stmt\Use_;
-use PhpParser\NodeTraverser;
 use PhpParser\NodeVisitorAbstract;
-use PhpParser\ParserFactory;
 
 final readonly class InlineVarCastGuard
 {
@@ -120,7 +118,7 @@ final readonly class InlineVarCastGuard
             }
         };
 
-        new NodeTraverser($visitor)->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        PhpSource::traverse(PhpSource::parse($source), $visitor);
 
         $lines = array_values(array_unique($visitor->lines));
         sort($lines);

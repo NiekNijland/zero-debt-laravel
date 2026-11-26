@@ -14,9 +14,6 @@ use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\NodeFinder;
-use PhpParser\NodeTraverser;
-use PhpParser\NodeVisitor\NameResolver;
-use PhpParser\ParserFactory;
 
 final readonly class EventDispatchGuard
 {
@@ -52,7 +49,7 @@ final readonly class EventDispatchGuard
      */
     public function inSource(string $source): array
     {
-        $statements = new NodeTraverser(new NameResolver())->traverse(new ParserFactory()->createForHostVersion()->parse($source) ?? []);
+        $statements = PhpSource::resolved($source);
         $dispatchers = TypedReceivers::in($statements, self::DISPATCHERS, ['events']);
         $violations = [];
 
