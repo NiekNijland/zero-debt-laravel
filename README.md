@@ -125,22 +125,28 @@ The two differ in what they start from. The other kit gives a strict skeleton an
 - No multi-tenancy, no queue jobs, events, mail or notifications, so the register of stored class names has no subject.
 - No login route: a token is issued with `php artisan notes:issue-token <email>`, and the demo user exists outside production only.
 - No container image for the CI jobs: the toolchain comes from `shivammathur/setup-php`, and the kit's skeleton pins an image by digest.
-- Two dashboard rows have no subject in a new project: `model-strictness-violations` has no list of violations to count, and `cap-ci-duration-minutes` reads `UNKNOWN` online for a repository that has no GitHub host.
+- One dashboard row has no subject in a new project: `model-strictness-violations` has no list of violations to count. `ci-duration-minutes` reads `UNKNOWN` online for a repository that is not hosted on GitHub or has no successful push run of `main` yet, and its cap is a decision row (`docs/decisions/0001-one-backend-pattern.md`).
 
 ## Proven and not proven
 
-Proven here, on a developer machine with PHP 8.5.12 and PostgreSQL 17:
+Proven on GitHub Actions, on `ubuntu-24.04` with PHP 8.4 and a PostgreSQL 17 service:
 
-- the application tests, the guard group, PHPStan, Rector, Pint, type coverage and the ratchet self-test, through `bash scripts/checks.sh`;
+- a push to `main`: the four parts of the checks, the tests with the coverage floor, and the smoke job with its signed-in step;
+- a pull request: the four parts with the gate against the base branch, the secret scan, the tests with the mutation run on the changed files, the smoke job and the aggregate job `checks-result`;
+- the gate refusing a pull request that raises a cap that stands at 0, and accepting the same file pushed to `main` (`KIT-FINDINGS.md`, P4-1);
+- the scheduled job: the full dashboard with its online rows and the mutation run over the whole tree, started from a throwaway branch;
+- the kit sync (it finds the pin equal to the kit's head and stops) and the canary, started by hand.
+
+Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17:
+
+- `bash scripts/checks.sh`, `composer test:unit` with the coverage floor and `bash scripts/debt-dashboard.sh --final --offline` on a clean clone;
 - every failing example of the CI contract test, and the contract test against a real break of the workflow (a removed time limit, an unpinned action) that was reverted;
-- the smoke commands of the workflow against a local server on the production drivers;
 - the instantiation script on a scratch copy, followed by a green `bash scripts/checks.sh` on the instantiated copy.
 
 Not proven:
 
-- no workflow has run on GitHub: the repository has no remote. The runner, the `setup-php` and `cache` steps, the PostgreSQL service, gitleaks and the branch protection are written from the kit's skeleton and the tools' documentation;
-- the kit sync and the canary have never run, and the doctor of the kit that both read is on the kit's `main` only after its commit is pushed;
-- PHP 8.4, the version of CI and `composer.json`, was not the version of the local runs;
+- the canary fails while the kit's `main` has no `tools/doctor.sh`, and the bump pull request of the kit sync has never been opened: both need a kit commit after the pinned one (`KIT-FINDINGS.md`, P3-2 and P4-4);
+- the branch protection of `docs/ci.md` is not set on the host, so a merge is not yet blocked by the required checks or the code-owner review;
 - the mutation floor was measured with four processes; a different count flaked on the first measurement (`KIT-FINDINGS.md`).
 
 `KIT-FINDINGS.md` lists what building this starter found wrong or missing in the kit.
