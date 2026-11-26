@@ -19,7 +19,7 @@
 
 # >>> config: the project sets every value in this block
 # Empty from step 2 on. At the exit of step 10 it becomes "--final", and it stays that.
-DASHBOARD_MODE=""
+DASHBOARD_MODE="--final"
 # The committed coverage floor: one line "threshold: <whole number>". The min ratchet row coverage-floor holds the number.
 COVERAGE_FLOOR_FILE="scripts/coverage-floor.txt"
 # The parts of the checks step, "<part>::<task names split by |>": one pipeline step per part (04-guards.md C4). The part gate
@@ -27,7 +27,7 @@ COVERAGE_FLOOR_FILE="scripts/coverage-floor.txt"
 # exactly one part and every name here is a task; the script stops when that is not so.
 PARTS=(
     "gate::"
-    "static::Format|Refactor|Analyser|Type coverage|Lint"
+    "static::Format|Refactor|Analyser|Type coverage|Lint|Manifest|Manifest floor|Unused packages"
     "guards::Guard tests"
     "repo::Audit|Commit messages|Secret scan"
 )
@@ -220,21 +220,24 @@ if [ "$PART" = "gate" ]; then
 fi
 
 TASKS=(
-    "Format::<formatter in check mode over the whole tree>"
-    "Refactor::<refactoring tool in dry-run mode over the whole tree>"
-    "Analyser::<static analyser and type checker over the whole tree>"
-    "Type coverage::<type coverage of the source, minimum 100>"
-    "Lint::<linter over the whole tree, zero warnings allowed>"
-    "Guard tests::<test runner command that runs the guard group and nothing else>"
+    "Format::vendor/bin/pint --test"
+    "Refactor::vendor/bin/rector process --dry-run --no-progress-bar"
+    "Analyser::php -d memory_limit=-1 vendor/bin/phpstan analyse --no-progress --configuration=phpstan-tests.neon"
+    "Type coverage::php -d memory_limit=-1 vendor/bin/pest --type-coverage --min=100"
+    "Lint::vendor/bin/parallel-lint --exclude vendor --exclude storage app bootstrap config database lang public routes tests"
+    "Manifest::composer validate --strict --no-interaction"
+    "Manifest floor::composer bump --dry-run --no-interaction"
+    "Unused packages::vendor/bin/composer-unused --no-progress"
+    "Guard tests::php -d memory_limit=-1 vendor/bin/pest --group=arch"
 )
 if [ "$RUN" = "--main" ]; then
     # A deploying branch audits production dependencies only: an advisory in a development tool with no fix must not stop a hotfix.
     TASKS+=(
-        "Audit::<the audit of each package manager as json, production dependencies only (npm: --omit=dev), piped into: bash scripts/audit-gate.sh>"
+        "Audit::composer audit --locked --no-dev --abandoned=report --format=json --no-interaction | bash scripts/audit-gate.sh"
     )
 else
     TASKS+=(
-        "Audit::<the audit of each package manager as json, piped into: bash scripts/audit-gate.sh>"
+        "Audit::composer audit --locked --abandoned=report --format=json --no-interaction | bash scripts/audit-gate.sh"
     )
 fi
 if [ -z "$RUN" ]; then

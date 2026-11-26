@@ -7,9 +7,9 @@ RATCHET_SCRIPT=""
 # The kit's limit for a file, in lines.
 MAX_LINES=400
 # Extended regular expressions over tracked paths. Empty means "no such files": the row counts 0.
-SOURCE_FILES='^(app|bootstrap|config)/.*\.php$'
-FRONTEND_FILES='^resources/js/.*\.(ts|tsx)$'
-TEST_FILES='^tests/.*\.php$|\.test\.tsx?$'
+SOURCE_FILES='^(app|bootstrap|config|database|routes|lang)/.*\.php$'
+FRONTEND_FILES=''
+TEST_FILES='^tests/.*\.php$'
 SIZE_EXEMPT=''
 # A line that declares a concrete class that is open for extension (indented, or after an attribute on the same line, too). An
 # abstract class is not counted: it is a parent by design. A concrete class that another class extends is counted like any other
@@ -26,9 +26,9 @@ NOT_A_CLASS='^[[:space:]]*(#\[[^]]*\][[:space:]]*)*(abstract[[:space:]]+(readonl
 # What a test file adds to the name of the file it covers: OrderService.php and OrderServiceTest.php give "Test";
 # order-service.ts and order-service.test.ts give ".test".
 TEST_NAME_SUFFIX="Test"
-FRONTEND_LOGIC='^resources/js/(.*/)?((hooks|utils|lib)/[^/]+|use-[^/]+)\.tsx?$'
-FRONTEND_COMPONENTS='^resources/js/.*\.tsx$'
-FRONTEND_NOT_COUNTED='\.(test|stories)\.tsx?$|\.d\.ts$|/(mocks|__mocks__|stories|types)/'
+FRONTEND_LOGIC=''
+FRONTEND_COMPONENTS=''
+FRONTEND_NOT_COUNTED=''
 FRONTEND_TEST_INFIX="test"
 # Git pathspecs, split on spaces. Decision records and the archive are history: exempt by category.
 DOCS_PATHS="docs :(exclude)docs/decisions :(exclude)docs/archive"
@@ -38,12 +38,12 @@ DOCS_MAX_AGE_DAYS=180
 SHRINK_ONLY="comments test-doubles event-fake-all"
 # What the min row analyser-switches must reach: the number of switches the catalog names, added up over the configs that hold
 # them (the example: 7 in phpstan.neon and 11 in tsconfig.json). --final fails the row below this number, and without a number.
-ANALYSER_SWITCHES_TARGET=18
+ANALYSER_SWITCHES_TARGET=7
 # What the other min rows must reach, as "<row>:<number>" split on spaces. --final fails a row below its number, and a name here
 # that has no ratchet row. The numbers are the kit's: coverage of the backend and of the frontend logic at 95, every set of
 # REFACTOR_SETS (19), every rule of FORMATTER_RULES (21), the advisory-blocking package (1). A project without the subject of a
 # row removes that entry with the script tag (no frontend: frontend-logic-coverage-floor; no PHP: the last three).
-MIN_ROW_TARGETS="coverage-floor:95 frontend-logic-coverage-floor:95 refactor-sets:19 formatter-rules:21 advisory-block:1"
+MIN_ROW_TARGETS="coverage-floor:95 refactor-sets:19 formatter-rules:21 advisory-block:1"
 # More rows: "<caps key>::<always|online|shown>::<command that prints one whole number>". online rows are skipped by --offline.
 # A shown row is skipped by --offline too, has no cap and never fails: only dependencies-behind is one.
 # json '<operation> <path>' reads JSON on standard input (tools/README.md, the methods table, "json").
@@ -54,11 +54,16 @@ COMMAND_ROWS=(
     "dependencies-abandoned::online::composer audit --locked --format=json --no-interaction | json 'count abandoned'"
     "dependencies-behind::shown::composer outdated --locked --direct --format=json --no-interaction | json 'count locked'"
     "dependencies-majors-behind::online::composer outdated --locked --direct --major-only --format=json --no-interaction | json 'count locked'"
+    "autoload-conformance::always::composer dump-autoload -o --no-scripts --no-interaction 2>&1 | grep -c 'psr-4'"
+    "ci-duration-minutes::online::gh run list --branch main --workflow kit-checks.yml --event push --status success --limit 10 --json startedAt,updatedAt --jq 'map((.updatedAt | fromdate) - (.startedAt | fromdate)) | sort | if length == 0 then empty else (.[length / 2 | floor] / 60 | ceil) end'"
 )
 # Two package managers (a PHP backend with a TypeScript frontend): add both counts in one command; see tools/README.md, "Adding a row", point 9.
 # One line of "do this" for every COMMAND_ROWS key the project adds: "<caps key>::<what to do when the row is open>".
 # A key of the project's own without a line here prints UNKNOWN.
-ROW_ADVICE=()
+ROW_ADVICE=(
+    "autoload-conformance::move or rename the class to the name its path says, or the file to its class"
+    "ci-duration-minutes::speed up or split the slowest step"
+)
 # <<< config
 
 SHARED_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kit-config.sh"

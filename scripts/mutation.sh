@@ -2,11 +2,11 @@
 
 # >>> config: the project sets every value in this block
 # The mutation tool of the stack: pest, infection or stryker (tools/README.md, "Mutation").
-MUTATION_TOOL="<pest, infection or stryker>"
+MUTATION_TOOL="pest"
 # The committed minimum score: one line "threshold: <whole number>". The min ratchet row mutation-floor holds the number.
 MUTATION_FLOOR_FILE="scripts/mutation-floor.txt"
 # The tracked source folders a pull request's changed files are taken from, separated by spaces.
-MUTATION_SOURCE_FOLDERS="<source folders>"
+MUTATION_SOURCE_FOLDERS="app"
 # <<< config
 
 SHARED_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kit-config.sh"
@@ -62,7 +62,7 @@ fi
 # MUTATION_FLOOR that this script sets (thresholds: { break: Number(process.env.MUTATION_FLOOR) }), so the floor file stays the
 # one place of the number. Stryker and Infection are not run for this kit: verify both lines in step 2.
 case "$MUTATION_TOOL:$MODE" in
-    pest:) vendor/bin/pest --mutate --everything --parallel --min="$FLOOR" ;;
+    pest:) vendor/bin/pest --mutate --everything --parallel --processes=4 --min="$FLOOR" ;;
     pest:--changed) vendor/bin/pest --mutate --parallel --path="$CHANGED" --min="$FLOOR" ;;
     infection:) vendor/bin/infection --threads=max --min-msi="$FLOOR" ;;
     infection:--changed) vendor/bin/infection --threads=max --min-msi="$FLOOR" --git-diff-filter=AMR --git-diff-base="$REMOTE/$BASE" ;;

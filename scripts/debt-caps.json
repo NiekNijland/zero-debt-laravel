@@ -11,5 +11,7 @@
     "docs-older-than-limit": 0,
     "dependency-advisories": 0,
     "dependencies-abandoned": 0,
-    "dependencies-majors-behind": 0
+    "dependencies-majors-behind": 0,
+    "autoload-conformance": 0,
+    "ci-duration-minutes": 0
 }

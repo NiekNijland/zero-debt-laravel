@@ -14,5 +14,5 @@ CAPS_FILE="scripts/debt-caps.json"
 # for example postgres:17 or mysql:8.4; empty when the project has no database. checks.sh refuses to run while the
 # placeholder is left. No script reads the value: the contract test over the CI files compares the service image
 # of the pipeline with it.
-DATABASE_IMAGE="<engine:major of production>"
+DATABASE_IMAGE="postgres:17"
 # <<< config

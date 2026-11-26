@@ -2,24 +2,24 @@
 
 # >>> config: the project sets every value in this block; the example values are a PHP backend with a TypeScript frontend
 # Comma lists of tracked folders or files. A trailing ? means "may be missing". Empty means "none".
-SOURCE_PATHS="app,bootstrap,config,database,routes,resources/views?"
+SOURCE_PATHS="app,bootstrap,config,database,routes,lang"
 TEST_PATHS="tests"
 # The test folders whose tests are written in the backend's test framework: the row test-skip counts there.
 # Empty in a project whose only language is TypeScript: frontend-test-skip counts its skips.
 TEST_SKIP_PATHS="tests"
-FRONTEND_PATHS="resources/js,vite.config.ts?,vitest.setup.ts?"
+FRONTEND_PATHS=""
 # Codemods live in tools/codemods and project scripts written in a source language (scripts/<name>.mjs) are named here: no row counts them.
-UNCOUNTED_PATHS="public?,eslint.config.js?,rector.php?,tools/codemods?"
+UNCOUNTED_PATHS="public,rector.php,composer-unused.php?"
 SOURCE_EXTENSIONS="php,js,jsx,mjs,cjs,ts,tsx,mts,cts,vue"
-ANALYSER_CONFIGS="phpstan.neon"
+ANALYSER_CONFIGS="phpstan.neon,phpstan-tests.neon"
 ANALYSER_BASELINE="phpstan-baseline.neon?"
-TYPE_CHECKER_CONFIGS="tsconfig.json?"
+TYPE_CHECKER_CONFIGS=""
 # One extended regular expression that matches a strictness switch that is on, in the analyser and type-checker configs.
 # The row analyser-switches counts the matches and only goes up. No double quote in the value. The last two alternatives are
 # the analyser's bleeding-edge include and the include of the date library's extension. Each alternative starts at the line start,
 # or after a brace or comma, so a switch that is commented out (# or //) is not counted.
 ANALYSER_SWITCHES="(^|[{,])[[:space:]]*[^A-Za-z[:space:]#/]?(checkTooWideReturnTypesInProtectedAndPublicMethods|checkMissingOverrideMethodAttribute|reportAnyTypeWideningInVarTag|checkOctaneCompatibility|noEnvCallsOutsideOfConfig|strict|noUncheckedIndexedAccess|noImplicitOverride|noImplicitReturns|noFallthroughCasesInSwitch|noUnusedLocals|noUnusedParameters|noUncheckedSideEffectImports)[^A-Za-z:[:space:]]?[[:space:]]*:[[:space:]]*true|(^|[{,])[[:space:]]*[^A-Za-z[:space:]#/]?(allowJs|allowUnreachableCode|allowUnusedLabels)[^A-Za-z:[:space:]]?[[:space:]]*:[[:space:]]*false|^[[:space:]]*-[[:space:]]+[^#[:space:]]*/conf/bleedingEdge[.]neon|^[[:space:]]*-[[:space:]]+[^#[:space:]]*/carbon/extension[.]neon"
-REFACTOR_CONFIG="rector.php?"
+REFACTOR_CONFIG="rector.php"
 # One extended regular expression that matches a set or switch of the refactoring tool that is on, in REFACTOR_CONFIG: the six
 # prepared sets, the ten framework sets, the language sets, the framework version read from the manifest, and unused imports
 # removed (templates/tool-configs.md). The row refactor-sets counts the matches and only goes up. No double quote, backslash
@@ -29,18 +29,18 @@ REFACTOR_SETS="(^[[:space:]]*|,[[:space:]]*|(^[[:space:]]*|[]A-Za-z0-9_)])->with
 # (true, or an object of options). The row formatter-rules counts the matches and only goes up: a rule that is switched off
 # for its own pull request (templates/tool-configs.md, "Rules that can change behavior") is not counted until it is on.
 # No double quote in the value.
-FORMATTER_CONFIG="pint.json?"
+FORMATTER_CONFIG="pint.json"
 FORMATTER_RULES="[^a-z_](strict_comparison|final_class|final_internal_class|final_public_method_for_abstract_class|protected_to_private|date_time_immutable|declare_strict_types|mb_str_functions|ordered_class_elements|ordered_interfaces|ordered_traits|self_accessor|self_static_accessor|modernize_types_casting|no_superfluous_elseif|no_multiple_statements_per_line|array_push|backtick_to_shell_exec|lowercase_keywords|lowercase_static_reference|visibility_required)[^a-z_:[:space:]]?[[:space:]]*:[[:space:]]*(true|[{])"
-AUDIT_MANIFEST="composer.json?"
+AUDIT_MANIFEST="composer.json"
 # The time-boxed audit exceptions that audit-gate.sh reads (one entry per line, at most 7 days each).
-AUDIT_EXCEPTIONS="scripts/audit-exceptions.json?"
-LINT_CONFIG="eslint.config.js?"
-LINT_BASELINE="eslint-suppressions.json?"
+AUDIT_EXCEPTIONS="scripts/audit-exceptions.json"
+LINT_CONFIG=""
+LINT_BASELINE=""
 # The folder with the keyed baselines that keyed-baseline.sh writes, one file per check.
 KEYED_BASELINES="baselines?"
-CI_FILES="bitbucket-pipelines.yml?,.github/workflows?,.gitlab-ci.yml?,scripts"
+CI_FILES=".github/workflows?,scripts"
 # The values that other scripts read too (the caps file, the base branch, the remote) are in kit-config.sh, next to this script.
-GUARDED_FILES=".gitattributes?,CODEOWNERS?,.github/CODEOWNERS?,docs/CODEOWNERS?,.gitlab/CODEOWNERS?,scripts/kit-config.sh?,scripts/debt-dashboard.sh?,scripts/ci-commit-messages.sh?,scripts/ci-parallel.sh?,scripts/keyed-baseline.sh?,scripts/audit-gate.sh?,scripts/mutation.sh?,scripts/checks.sh?,bitbucket-pipelines.yml?,.github/workflows?,.gitlab-ci.yml?"
+GUARDED_FILES=".gitattributes,CODEOWNERS?,.github/CODEOWNERS,docs/CODEOWNERS?,.gitlab/CODEOWNERS?,scripts/kit-config.sh?,scripts/debt-dashboard.sh?,scripts/ci-commit-messages.sh?,scripts/ci-parallel.sh?,scripts/keyed-baseline.sh?,scripts/audit-gate.sh?,scripts/mutation.sh?,scripts/checks.sh?,bitbucket-pipelines.yml?,.github/workflows?,.gitlab-ci.yml?"
 # The rows that never go below 0 but still take an override at 0 (a reason that is itself a decision: a justified comment, a pinned
 # major). A comma list of row names; every other max row at 0 takes none.
 OVERRIDE_AT_ZERO="comments,cap-dependencies-majors-behind"
@@ -78,6 +78,17 @@ frontend-test-skip                     max  grep   @SOURCE_PATHS,@TEST_PATHS,@FR
 comments                               max  grep   @SOURCE_PATHS,@TEST_PATHS,@FRONTEND_PATHS,:(exclude)*.md  (^|[][[:space:];{}(),])//|(^[[:space:]]*|[;{}(),][[:space:]]+)#([[:space:]]|$)|(^|[][[:space:];{}(),])/\*([^*]|\*[[:space:]]+[^@[:space:]*/])|(^|[][[:space:];{}(),])/\*[[:space:]]*$|^[[:space:]]*\*[[:space:]]+[^@[:space:]*]|<!--|\{\{--
 todo                                   max  grep   @SOURCE_PATHS,@TEST_PATHS,@FRONTEND_PATHS,:(exclude)*.md  (^|[^A-Za-z0-9_])(TODO|FIXME|HACK|XXX)([^A-Za-z0-9_]|$)|@todo
 ci-skipped-steps                       max  grep   @CI_FILES  \|\|[[:space:]]*(true|:|exit[[:space:]]+0|/(usr/)?bin/true|[({][[:space:]]*(true|:|exit[[:space:]]+0))([^A-Za-z0-9_]|$)|;[[:space:]]*exit[[:space:]]+0([^A-Za-z0-9_]|$)|continue-on-erro[r]:[[:space:]]*[^f"'[:space:]]|allow_failur[e]:[[:space:]]*([^f[:space:]]|$)
+coverage-floor                         min  number scripts/coverage-floor.txt  ^threshold: ([0-9]+)$
+mutation-floor                         min  number scripts/mutation-floor.txt  ^threshold: ([0-9]+)$
+strict-types-missing                   max  without @SOURCE_PATHS,@TEST_PATHS  (^|/)[^/.]+\.php$ ^declare\(strict_types=1\);
+loose-comparisons                      max  grep   @SOURCE_PATHS,@TEST_PATHS  (^|[^=!<>])(==|!=|<>)([^=]|$)
+mutable-dates                          max  grep   @SOURCE_PATHS,@TEST_PATHS  (^|[^A-Za-z0-9_])(DateTime|Carbon)(::|[[:space:]]*[(;,)])
+byte-string-functions                  max  grep   @SOURCE_PATHS,@TEST_PATHS  (^|[^A-Za-z0-9_>:$\\])\\?(strlen|substr|strpos|strrpos|stripos|strripos|strstr|stristr|strrchr|substr_count|str_split|strtolower|strtoupper)[(]
+queue-bus-fake-all                     max  grep   @TEST_PATHS,:(exclude)*.md  (Queue|Bus)::fake(For)?\([[:space:]]*(\[[[:space:]]*\])?[[:space:]]*(\)|$)
+guide-future-tense                     max  grep   app/AGENTS.md,tests/AGENTS.md  (^|[^A-Za-z])([Ww]ill|[Ff]or now|[Uu]ntil)([^A-Za-z]|$)
+unused-ignore                          max  grep   composer-unused.php?  NamedFilter::fromString
+cap-autoload-conformance               max  json   @CAPS_FILE  value autoload-conformance
+cap-ci-duration-minutes                max  json   @CAPS_FILE  value ci-duration-minutes
 cap-source-files-over-limit            max  json   @CAPS_FILE  value source-files-over-limit
 cap-frontend-files-over-limit          max  json   @CAPS_FILE  value frontend-files-over-limit
 cap-test-files-over-limit              max  json   @CAPS_FILE  value test-files-over-limit
@@ -876,6 +887,14 @@ byte-string-functions 0 $n = mb_strlen($s);
 guide-future-tense 1 This will change.
 guide-future-tense 1 Until then.
 guide-future-tense 0 A willing reader.
+queue-bus-fake-all 1 Queue::fake();
+queue-bus-fake-all 1 Bus::fake([]);
+queue-bus-fake-all 1 Queue::fake(
+queue-bus-fake-all 0 Queue::fake([Foo::class]);
+queue-bus-fake-all 0 Bus::fake([Foo::class]);
+queue-bus-fake-all 0 Event::fake();
+unused-ignore@composer-unused.php 1 ->addNamedFilter(NamedFilter::fromString('foo/bar'))
+unused-ignore@composer-unused.php 0 ->setAdditionalFilesFor('foo/bar', [])
 CASES
 }
 

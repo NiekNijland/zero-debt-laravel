@@ -4,9 +4,9 @@
 # The ticket as an extended regular expression, for example TICKET='PROJ-[0-9]+'. With no ticket system: the fixed
 # prefix, TICKET='NOTICKET'. EXAMPLE is what the failure message prints, for example 'PROJ-123 feat: add the export'.
 # The script refuses to run while a placeholder is left in either.
-TICKET='<ticket pattern>'
+TICKET='NOTICKET'
 TYPES='feat|fix|refactor|test|docs|chore|style|ci|perf|build|revert'
-EXAMPLE='<example subject>'
+EXAMPLE='NOTICKET feat: add the export'
 # Titles a tool or the host writes, accepted without the form (an extended regular expression, matched over the whole subject).
 # A commit with more than one parent is never checked, so "Merge branch ..." and "Merge pull request ..." are not listed: on a
 # single-parent commit they would hide work behind a generated-looking title. A project that keeps a tool-made title adds its
