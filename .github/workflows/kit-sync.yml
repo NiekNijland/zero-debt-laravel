@@ -66,19 +66,18 @@ jobs:
       - name: Bring the scripts to the kit's version, keeping the project's config
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 5
-        run: bash kit-main/tools/doctor.sh --project "$PWD" --upgrade-plan --apply
-      - name: Put the project's own task lines of checks.sh back
+        run: bash kit-main/tools/doctor.sh --project "$PWD" --upgrade-plan --apply 2>&1 | tee sync-apply.txt
+      - name: Name the ratchet rows the kit changed, for the tags of the commit
+        id: rows
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 2
         run: |
-          # The doctor keeps the commands of the tasks the kit has and drops the others, while PARTS still names them (kit finding P3-11).
-          git show HEAD:scripts/checks.sh | grep -E '^    "[A-Za-z][A-Za-z ]*::' | while IFS= read -r line; do
-            name="${line#    \"}"
-            name="${name%%::*}"
-            if grep -qF "\"$name::" scripts/checks.sh; then continue; fi
-            awk -v add="$line" '/^    "Guard tests::/ && done != 1 { print add; done = 1 } { print }' scripts/checks.sh > checks.tmp
-            mv checks.tmp scripts/checks.sh
-          done
+          rows="$(sed -n "s/^Doctor: scripts\/ci-ratchets.sh: ratchet rows the kit changed are the kit's again: //p" sync-apply.txt)"
+          {
+            echo 'tags<<TAGS'
+            for row in $rows; do echo "[ratchet: $row] the kit changed this row since the pin; the doctor carried the kit's row"; done
+            echo 'TAGS'
+          } >> "$GITHUB_OUTPUT"
       - name: Move the pin
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 2
@@ -105,6 +104,7 @@ jobs:
             NOTICKET chore(kit): move the kit pin to ${{ steps.kit.outputs.short }}
 
             [ratchet: script] upgrade the kit scripts to ${{ steps.kit.outputs.latest }}
+            ${{ steps.rows.outputs.tags }}
           title: 'NOTICKET chore(kit): move the kit pin to ${{ steps.kit.outputs.short }}'
           body-path: sync-report.txt
           labels: kit-sync
