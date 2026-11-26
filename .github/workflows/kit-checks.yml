@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, reopened, edited]
   push:
-    branches: ['main', 'scheduled-proof']
+    branches: ['main']
   schedule:
     - cron: '17 3 * * *'
 
@@ -301,7 +301,7 @@ jobs:
           curl -sS --fail-with-body -H "Authorization: Bearer $token" -H 'Accept: application/json' "$SMOKE_BASE_URL/api/v1/notes" | jq -e --argjson id "$id" '.data | map(.id) | index($id) != null'
 
   scheduled:
-    if: github.event_name == 'schedule' || github.ref_name == 'scheduled-proof'
+    if: github.event_name == 'schedule' || github.head_ref == 'scheduled-proof'
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     permissions:
