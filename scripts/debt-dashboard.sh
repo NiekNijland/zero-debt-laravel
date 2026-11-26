@@ -35,7 +35,7 @@ DOCS_PATHS="docs :(exclude)docs/decisions :(exclude)docs/archive"
 DOCS_MAX_AGE_DAYS=180
 # Ratchet rows with no zero target (--final does not fail them). The first three are fixed. Add a row's name, or cap-<key> for a cap,
 # only with a decision row in the plan: the evidence why zero is impossible, or the owner's pin of a major version.
-SHRINK_ONLY="comments test-doubles event-fake-all"
+SHRINK_ONLY="comments test-doubles event-fake-all cap-dependencies-abandoned"
 # What the min row analyser-switches must reach: the number of switches the catalog names, added up over the configs that hold
 # them (the example: 7 in phpstan.neon and 11 in tsconfig.json). --final fails the row below this number, and without a number.
 ANALYSER_SWITCHES_TARGET=7

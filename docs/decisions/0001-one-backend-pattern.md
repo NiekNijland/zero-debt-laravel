@@ -19,3 +19,7 @@ The rules are enforced three ways: PHPStan at level 10 with the disallowed-calls
 ## Consequences
 
 A new domain is a new folder of `app/Modules`, and a class outside the folders of the table fails `tests/Unit/ModuleLayoutArchitectureTest.php`. A pattern that changes is a pull request that changes the table, the guard and the example file together. There is no migration of old code, because there is no old code; a project that adopts the starter replaces the notes module with its own domain and keeps the rules.
+
+## Decision row: one abandoned development package
+
+The row `dependencies-abandoned` stands at 1 and is shrink-only (`cap-dependencies-abandoned`). The package is `symplify/rule-doc-generator-contracts`, required by the latest release of `driftingly/rector-laravel` (2.7.3), the refactoring package the kit prescribes. No replacement exists. The row goes to 0 when a release of that package drops the requirement; the cap then goes to 0 and the entry leaves the shrink-only list.
