@@ -309,6 +309,7 @@ jobs:
       actions: read
     env:
       GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
     services:
       database:
         image: postgres:17

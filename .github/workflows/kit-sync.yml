@@ -58,8 +58,7 @@ jobs:
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 5
         run: |
-          # TODO: tools/doctor.sh is on the kit's main only once the kit commit that adds it is pushed (the kit's main was at the pinned commit when the starter was published); a kit main that moved without it fails this step with the message below.
-          test -f kit-main/tools/doctor.sh || { echo "The kit at kit-main has no tools/doctor.sh: push the kit commit that adds it" >&2; exit 1; }
+          test -f kit-main/tools/doctor.sh || { echo "The kit at kit-main has no tools/doctor.sh" >&2; exit 1; }
           status=0
           bash kit-main/tools/doctor.sh --project "$PWD" > sync-report.txt || status=$?
           echo "Doctor exit status: $status" >> sync-report.txt
@@ -68,6 +67,18 @@ jobs:
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 5
         run: bash kit-main/tools/doctor.sh --project "$PWD" --upgrade-plan --apply
+      - name: Put the project's own task lines of checks.sh back
+        if: steps.kit.outputs.changed == 'true'
+        timeout-minutes: 2
+        run: |
+          # The doctor keeps the commands of the tasks the kit has and drops the others, while PARTS still names them (kit finding P3-11).
+          git show HEAD:scripts/checks.sh | grep -E '^    "[A-Za-z][A-Za-z ]*::' | while IFS= read -r line; do
+            name="${line#    \"}"
+            name="${name%%::*}"
+            if grep -qF "\"$name::" scripts/checks.sh; then continue; fi
+            awk -v add="$line" '/^    "Guard tests::/ && done != 1 { print add; done = 1 } { print }' scripts/checks.sh > checks.tmp
+            mv checks.tmp scripts/checks.sh
+          done
       - name: Move the pin
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 2
