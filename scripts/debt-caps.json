@@ -13,5 +13,5 @@
     "dependencies-abandoned": 1,
     "dependencies-majors-behind": 0,
     "autoload-conformance": 0,
-    "ci-duration-minutes": 3
+    "ci-duration-minutes": 2
 }

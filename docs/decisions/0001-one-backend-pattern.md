@@ -23,3 +23,7 @@ A new domain is a new folder of `app/Modules`, and a class outside the folders o
 ## Decision row: one abandoned development package
 
 The row `dependencies-abandoned` stands at 1 and is shrink-only (`cap-dependencies-abandoned`). The package is `symplify/rule-doc-generator-contracts`, required by the latest release of `driftingly/rector-laravel` (2.7.3), the refactoring package the kit prescribes. No replacement exists. The main branch of `driftingly/rector-laravel` has dropped the requirement, but no release carries that change (the newest is 2.7.3, checked on 2026-11-26), and the lock file holds releases only. The row goes to 0 when a release of that package drops the requirement; the cap then goes to 0 and the entry leaves the shrink-only list.
+
+## Decision row: the pipeline takes minutes
+
+The row `ci-duration-minutes` is the median of the last successful push runs of `kit-checks.yml` on `main`, rounded up to whole minutes (`gh run list`, read by `bash scripts/debt-dashboard.sh --final` online). It cannot be 0: a pipeline that runs a database, a mutation floor and a smoke job takes time. Its cap equals the measured number, 2 (`cap-ci-duration-minutes`, listed in `SHRINK_ONLY`): the successful push runs of `main` took about a minute each. The dashboard fails the row when the median goes above the cap and when the cap is above the median, so the cap follows the measurement down.
