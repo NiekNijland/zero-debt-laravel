@@ -3,6 +3,7 @@ name: Kit canary
 on:
   schedule:
     - cron: '43 2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: read
