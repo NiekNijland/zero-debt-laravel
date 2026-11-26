@@ -1,5 +1,4 @@
 # zero-debt-laravel
-
 <!-- badges:start -->
 [![Kit checks](https://github.com/NiekNijland/zero-debt-laravel/actions/workflows/kit-checks.yml/badge.svg?branch=main)](https://github.com/NiekNijland/zero-debt-laravel/actions/workflows/kit-checks.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
