@@ -71,17 +71,6 @@ jobs:
       - name: Put the kit's scripts in the workspace, keeping the project's config
         timeout-minutes: 5
         run: bash kit-main/tools/doctor.sh --project "$PWD" --upgrade-plan --apply
-      - name: Put the project's own task lines of checks.sh back
-        timeout-minutes: 2
-        run: |
-          # The doctor keeps the commands of the tasks the kit has and drops the others, while PARTS still names them (kit finding P3-11).
-          git show HEAD:scripts/checks.sh | grep -E '^    "[A-Za-z][A-Za-z ]*::' | while IFS= read -r line; do
-            name="${line#    \"}"
-            name="${name%%::*}"
-            if grep -qF "\"$name::" scripts/checks.sh; then continue; fi
-            awk -v add="$line" '/^    "Guard tests::/ && done != 1 { print add; done = 1 } { print }' scripts/checks.sh > checks.tmp
-            mv checks.tmp scripts/checks.sh
-          done
       - name: Prove the ratchet rows against the kit's script
         timeout-minutes: 10
         run: bash scripts/ci-ratchets.sh --self-test
@@ -96,10 +85,10 @@ jobs:
         run: mv kit-main "$RUNNER_TEMP/kit-main"
       - name: Run the static checks with the kit's scripts
         timeout-minutes: 20
-        run: bash scripts/checks.sh --main --part static
+        run: bash scripts/checks.sh --part static
       - name: Run the guard tests with the kit's scripts
         timeout-minutes: 20
-        run: bash scripts/checks.sh --main --part guards
+        run: bash scripts/checks.sh --part guards
       - name: Keep the drift report
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

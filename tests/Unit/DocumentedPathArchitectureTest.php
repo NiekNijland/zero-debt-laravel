@@ -68,6 +68,21 @@ it('accepts paths that exist, placeholders, wildcards and text that is not a pat
     }
 });
 
+it('fails a path of another repository unless its folder is named as foreign', function () use ($roots, $guides): void {
+    $root = SourceSandbox::create(['AGENTS.md' => "Run `tools/doctor.sh` from the kit, see `ci/checks.sh`.\n", 'app/Support/Like.php' => "<?php\n"]);
+
+    try {
+        $failing = new DocumentedPathGuard($root, $roots, $guides, 'AGENTS.md')->violations();
+        $passing = new DocumentedPathGuard($root, $roots, $guides, 'AGENTS.md', ['tools', 'ci'])->violations();
+    } finally {
+        SourceSandbox::remove($root);
+    }
+
+    expect($failing)->toHaveCount(2)
+        ->and($failing[0])->toContain('no file ends in `tools/doctor.sh`')
+        ->and($passing)->toBe([]);
+});
+
 it('names the guide relative to the root when the checkout sits under a dot directory', function () use ($roots, $guides): void {
     $root = SourceSandbox::create(['AGENTS.md' => "Copy `app/Support/Gone.php`.\n", 'app/Support/Like.php' => "<?php\n"], prefix: '.checkout-');
 
