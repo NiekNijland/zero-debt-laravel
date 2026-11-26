@@ -125,7 +125,7 @@ The two differ in what they start from. The other kit gives a strict skeleton an
 - No multi-tenancy, no queue jobs, events, mail or notifications, so the register of stored class names has no subject.
 - No login route: a token is issued with `php artisan notes:issue-token <email>`, and the demo user exists outside production only.
 - No container image for the CI jobs: the toolchain comes from `shivammathur/setup-php`, and the kit's skeleton pins an image by digest.
-- One dashboard row has no subject in a new project: `model-strictness-violations` has no list of violations to count. `ci-duration-minutes` reads `UNKNOWN` online until the repository is hosted on GitHub and has a successful push run of `main`, and its cap is a decision row (`docs/decisions/0001-one-backend-pattern.md`).
+- One dashboard row has no subject in a new project: `model-strictness-violations` has no list of violations to count. `ci-duration-minutes` reads `UNKNOWN` online for a repository that is not hosted on GitHub or has no successful push run of `main` yet, and its cap is a decision row (`docs/decisions/0001-one-backend-pattern.md`).
 
 ## Proven and not proven
 
@@ -145,7 +145,7 @@ Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17:
 
 Not proven:
 
-- the canary fails until the kit's `main` has `tools/doctor.sh`, and the bump pull request of the kit sync has never been opened: both need a kit commit after the pinned one (`KIT-FINDINGS.md`, P3-2 and P4-4);
+- the canary fails while the kit's `main` has no `tools/doctor.sh`, and the bump pull request of the kit sync has never been opened: both need a kit commit after the pinned one (`KIT-FINDINGS.md`, P3-2 and P4-4);
 - the branch protection of `docs/ci.md` is not set on the host, so a merge is not yet blocked by the required checks or the code-owner review;
 - the mutation floor was measured with four processes; a different count flaked on the first measurement (`KIT-FINDINGS.md`).
 
