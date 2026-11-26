@@ -1,30 +1,41 @@
 {
     "$schema": "https://getcomposer.org/schema.json",
-    "name": "laravel/laravel",
+    "name": "zero-debt/laravel",
     "type": "project",
-    "description": "The skeleton application for the Laravel framework.",
-    "keywords": ["laravel", "framework"],
+    "description": "zero-debt-laravel: a Laravel API at the end state of the zero-debt kit.",
+    "keywords": [
+        "laravel",
+        "zero-debt",
+        "strict"
+    ],
     "license": "MIT",
     "require": {
-        "php": "^8.3",
-        "laravel/framework": "^13.17",
-        "laravel/tinker": "^3.0"
+        "php": "^8.4",
+        "laravel/framework": "^13.44.1",
+        "laravel/sanctum": "^4.5",
+        "spatie/laravel-data": "^4.23.1",
+        "spatie/laravel-permission": "^8.5"
     },
     "require-dev": {
-        "driftingly/rector-laravel": "^2.7",
-        "fakerphp/faker": "^1.23",
+        "driftingly/rector-laravel": "^2.7.3",
+        "fakerphp/faker": "^1.24.1",
+        "icanhazstring/composer-unused": "^0.9.9",
         "larastan/larastan": "^3.15",
-        "laravel/pail": "^1.2.5",
-        "laravel/pao": "^1.0.6",
-        "laravel/pint": "^1.27",
+        "laravel/pint": "^1.32.3",
+        "mockery/mockery": "^1.6.15",
         "nikic/php-parser": "^5.9",
-        "nunomaduro/collision": "^8.6",
-        "pestphp/pest": "^5.3",
-        "pestphp/pest-plugin-laravel": "^5.0",
-        "pestphp/pest-plugin-type-coverage": "^5.1",
-        "rector/rector": "^2.9",
+        "nunomaduro/collision": "^8.9.6",
+        "pestphp/pest": "^5.3.7",
+        "pestphp/pest-plugin-laravel": "^5.0.1",
+        "pestphp/pest-plugin-type-coverage": "^5.1.1",
+        "php-parallel-lint/php-parallel-lint": "^1.4",
+        "phpstan/phpstan-strict-rules": "^2.1.2",
+        "rector/rector": "^2.9.2",
         "roave/security-advisories": "dev-latest",
-        "symfony/yaml": "^8.1"
+        "shipmonk/dead-code-detector": "^1.4.2",
+        "spaze/phpstan-disallowed-calls": "^4.15.1",
+        "symfony/yaml": "^8.1.12",
+        "tomasvotruba/type-coverage": "^2.5.1"
     },
     "autoload": {
         "psr-4": {
@@ -39,36 +50,47 @@
         }
     },
     "scripts": {
-        "setup": [
-            "composer install",
-            "@php -r \"file_exists('.env') || copy('.env.example', '.env');\"",
-            "@php artisan key:generate",
-            "@php artisan migrate --force",
-            "npm install --ignore-scripts",
-            "npm run build"
-        ],
-        "dev": [
-            "Composer\\Config::disableProcessTimeout",
-            "@php artisan dev"
-        ],
         "test": [
-            "@php artisan config:clear --ansi @no_additional_args",
-            "@php artisan test"
+            "Composer\\Config::disableProcessTimeout",
+            "bash scripts/checks.sh"
+        ],
+        "test:lint": [
+            "Composer\\Config::disableProcessTimeout",
+            "vendor/bin/pint --test",
+            "vendor/bin/rector process --dry-run --no-progress-bar"
+        ],
+        "test:types": [
+            "Composer\\Config::disableProcessTimeout",
+            "php -d memory_limit=-1 vendor/bin/phpstan analyse --no-progress --configuration=phpstan-tests.neon"
+        ],
+        "test:type-coverage": [
+            "Composer\\Config::disableProcessTimeout",
+            "php -d memory_limit=-1 vendor/bin/pest --type-coverage --min=100"
+        ],
+        "test:unit": [
+            "Composer\\Config::disableProcessTimeout",
+            "php -d memory_limit=-1 vendor/bin/pest --parallel --coverage-clover=coverage.xml",
+            "bash scripts/checks.sh --coverage coverage.xml"
+        ],
+        "lint": [
+            "Composer\\Config::disableProcessTimeout",
+            "vendor/bin/rector process --no-progress-bar",
+            "vendor/bin/pint"
+        ],
+        "update:requirements": [
+            "Composer\\Config::disableProcessTimeout",
+            "@composer update --no-interaction",
+            "@composer bump"
         ],
         "post-autoload-dump": [
             "Illuminate\\Foundation\\ComposerScripts::postAutoloadDump",
             "@php artisan package:discover --ansi"
         ],
-        "post-update-cmd": [
-            "@php artisan vendor:publish --tag=laravel-assets --ansi --force"
-        ],
         "post-root-package-install": [
             "@php -r \"file_exists('.env') || copy('.env.example', '.env');\""
         ],
         "post-create-project-cmd": [
-            "@php artisan key:generate --ansi",
-            "@php -r \"file_exists('database/database.sqlite') || touch('database/database.sqlite');\"",
-            "@php artisan migrate --graceful --ansi"
+            "@php artisan key:generate --ansi"
         ],
         "pre-package-uninstall": [
             "Illuminate\\Foundation\\ComposerScripts::prePackageUninstall"

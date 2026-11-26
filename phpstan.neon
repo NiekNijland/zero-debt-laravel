@@ -1,0 +1,217 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+    - vendor/phpstan/phpstan/conf/bleedingEdge.neon
+    - vendor/nesbot/carbon/extension.neon
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+    - vendor/spaze/phpstan-disallowed-calls/extension.neon
+    - vendor/tomasvotruba/type-coverage/config/extension.neon
+
+parameters:
+    strictRules:
+        dynamicCallOnStaticMethod: false
+
+    paths:
+        - app
+        - bootstrap/app.php
+        - bootstrap/providers.php
+        - config
+        - database
+        - public
+        - routes
+
+    level: 10
+
+    checkTooWideReturnTypesInProtectedAndPublicMethods: true
+    checkMissingOverrideMethodAttribute: true
+    reportAnyTypeWideningInVarTag: true
+    checkOctaneCompatibility: true
+    noEnvCallsOutsideOfConfig: true
+
+    type_coverage:
+        return: 100
+        param: 100
+        property: 100
+        constant: 100
+
+    disallowedFunctionCalls:
+        -
+            function: 'config()'
+            message: 'read config with Config::string(), Config::integer(), Config::boolean(), Config::float() or Config::array()'
+            allowIn:
+                - tests/*
+        -
+            function:
+                - 'sleep()'
+                - 'usleep()'
+                - 'time_nanosleep()'
+                - 'time_sleep_until()'
+            message: 'wait with Sleep::for(...)->seconds() or ->milliseconds() (Illuminate\Support\Sleep), which a test fakes with Sleep::fake()'
+        -
+            function: 'time()'
+            message: 'take the current time from the clock a test can move: now()->getTimestamp()'
+        -
+            function: 'is_null()'
+            message: 'compare with === null'
+        -
+            function: 'session()'
+            message: 'read the session of the request: $request->session()->get(''key'')'
+        -
+            function: 'trans()'
+            message: 'translate a key of lang/ with __()'
+        -
+            function: 'event()'
+            message: 'dispatch an event of the application with XEvent::dispatch(...), and an event that is built earlier or comes from a vendor with Event::dispatch($event)'
+        -
+            function: 'json_decode()'
+            message: 'decode with the flag JSON_THROW_ON_ERROR, or with Json::decodeOrNull($json) (App\Support\Json) when text that is not JSON is expected'
+            allowParamFlagsAnywhere:
+                -
+                    position: 4
+                    name: 'flags'
+                    value: 4194304
+        -
+            function: 'json_encode()'
+            message: 'encode with the flag JSON_THROW_ON_ERROR, or with Json::encodeOrNull($value) (App\Support\Json) when the value holds text from outside that may not be UTF-8'
+            allowParamFlagsAnywhere:
+                -
+                    position: 2
+                    name: 'flags'
+                    value: 4194304
+        -
+            function:
+                - 'dd()'
+                - 'ddd()'
+                - 'dump()'
+                - 'var_dump()'
+                - 'ray()'
+                - 'debug_zval_dump()'
+                - 'debug_print_backtrace()'
+                - 'phpinfo()'
+            message: 'a debug call never ships: remove it, or keep the fact with Log::debug() or report($exception)'
+        -
+            function:
+                - 'print_r()'
+                - 'var_export()'
+            message: 'printing a value is a debug call: remove it, or pass true as the second argument when the code needs the text'
+            allowParamsAnywhere:
+                -
+                    position: 2
+                    name: 'return'
+                    value: true
+        -
+            function:
+                - 'getenv()'
+            message: 'take the checked value from the request or the config, never from the environment outside config'
+
+    disallowedStaticCalls:
+        -
+            method:
+                - 'Illuminate\Support\Facades\Route::resource()'
+                - 'Illuminate\Support\Facades\Route::resources()'
+                - 'Illuminate\Support\Facades\Route::apiResource()'
+                - 'Illuminate\Support\Facades\Route::apiResources()'
+                - 'Illuminate\Support\Facades\Route::singleton()'
+                - 'Illuminate\Support\Facades\Route::apiSingleton()'
+                - 'Illuminate\Support\Facades\Route::any()'
+                - 'Illuminate\Support\Facades\Route::match()'
+            message: 'a route is one HTTP verb for one single-action controller: write Route::get(), post(), put(), patch() or delete() with <Area>\<Noun>\<Verb>Controller::class'
+        -
+            method: 'Illuminate\Support\Facades\Http::withoutVerifying()'
+            message: 'an HTTP client always verifies the certificate: remove the call'
+        -
+            method:
+                - 'Illuminate\Database\Eloquent\Model::unguard()'
+                - 'Illuminate\Database\Eloquent\Model::reguard()'
+                - 'Illuminate\Database\Eloquent\Model::unguarded()'
+            message: 'mass assignment stays guarded: set a column that is not fillable with forceFill([...]) or forceCreate([...])'
+        -
+            method:
+                - 'Carbon\CarbonImmutable::now()'
+                - 'Illuminate\Support\Facades\Date::now()'
+                - 'Illuminate\Support\DateFactory::now()'
+            message: 'take the current time with now(), or now($timezone): it is the clock a test moves and it returns a CarbonImmutable'
+        -
+            method: 'Carbon\Carbon::*()'
+            message: 'dates are immutable (Date::use(CarbonImmutable::class)): take the current time with now() and read a date with CarbonImmutable::parse()'
+        -
+            method:
+                - 'Illuminate\Database\Eloquent\Model::shouldBeStrict()'
+                - 'Illuminate\Database\Eloquent\Model::preventLazyLoading()'
+                - 'Illuminate\Database\Eloquent\Model::preventSilentlyDiscardingAttributes()'
+                - 'Illuminate\Database\Eloquent\Model::preventAccessingMissingAttributes()'
+                - 'Illuminate\Database\Eloquent\Model::handleLazyLoadingViolationUsing()'
+                - 'Illuminate\Database\Eloquent\Model::handleDiscardedAttributeViolationUsing()'
+                - 'Illuminate\Database\Eloquent\Model::handleMissingAttributeViolationUsing()'
+                - 'Illuminate\Support\Facades\DB::prohibitDestructiveCommands()'
+                - 'Illuminate\Support\Facades\URL::forceHttps()'
+                - 'Illuminate\Support\Facades\Date::use()'
+                - 'Illuminate\Validation\Rules\Password::defaults()'
+            message: 'the framework strictness switches are calls in boot() of AppServiceProvider only'
+            allowIn:
+                - app/Providers/AppServiceProvider.php
+                - tests/Support/Providers/ProductionBoot.php
+        -
+            method: 'Illuminate\Support\Facades\URL::forceScheme()'
+            message: 'generated URLs are forced to HTTPS in the provider with URL::forceHttps(), never forceScheme()'
+        -
+            method:
+                - 'Illuminate\Database\Eloquent\Model::automaticallyEagerLoadRelationships()'
+                - 'Illuminate\Database\Eloquent\Collection::withRelationshipAutoloading()'
+            message: 'relations are loaded where the query is built with with() or load(), never by automatic eager loading'
+        -
+            method:
+                - 'Illuminate\Validation\Rules\Password::min()'
+            message: 'the one password rule is Password::defaults() of the provider: validate with Password::default()'
+            allowIn:
+                - app/Providers/AppServiceProvider.php
+        -
+            method: 'Illuminate\Support\Facades\Config::set()'
+            message: 'a test sets config with config([...]), never the facade setter'
+            allowIn:
+                - nothing/*
+        -
+            method:
+                - 'Carbon\Carbon::setTestNow()'
+                - 'Carbon\CarbonImmutable::setTestNow()'
+                - 'Illuminate\Support\Facades\Date::setTestNow()'
+            message: 'move the clock with travelTo() from the moment the base set-up froze'
+        -
+            method:
+                - 'Illuminate\Support\Facades\Http::allowStrayRequests()'
+                - 'Illuminate\Support\Facades\Process::allowStrayProcesses()'
+            message: 'a test fakes the requests and processes it expects, and never switches the stray guard off'
+        -
+            method:
+                - 'Illuminate\Support\Facades\Config::get()'
+                - 'Illuminate\Config\Repository::get()'
+            message: 'read config with Config::string(), Config::integer(), Config::boolean(), Config::float() or Config::array()'
+
+    disallowedMethodCalls:
+        -
+            method:
+                - 'Illuminate\Routing\Router::resource()'
+                - 'Illuminate\Routing\Router::resources()'
+                - 'Illuminate\Routing\Router::apiResource()'
+                - 'Illuminate\Routing\Router::apiResources()'
+                - 'Illuminate\Routing\Router::singleton()'
+                - 'Illuminate\Routing\Router::apiSingleton()'
+                - 'Illuminate\Routing\Router::any()'
+                - 'Illuminate\Routing\Router::match()'
+                - 'Illuminate\Routing\RouteRegistrar::resource()'
+                - 'Illuminate\Routing\RouteRegistrar::apiResource()'
+                - 'Illuminate\Routing\RouteRegistrar::singleton()'
+                - 'Illuminate\Routing\RouteRegistrar::apiSingleton()'
+                - 'Illuminate\Routing\RouteRegistrar::any()'
+            message: 'a route is one HTTP verb for one single-action controller: write Route::get(), post(), put(), patch() or delete() with <Area>\<Noun>\<Verb>Controller::class'
+        -
+            method:
+                - 'Illuminate\Http\Client\PendingRequest::withoutVerifying()'
+                - 'Illuminate\Http\Client\Factory::withoutVerifying()'
+            message: 'an HTTP client always verifies the certificate: remove the call'
+        -
+            method:
+                - 'Illuminate\Contracts\Config\Repository::get()'
+                - 'Illuminate\Config\Repository::get()'
+            message: 'read config with Config::string(), Config::integer(), Config::boolean(), Config::float() or Config::array()'
+
+    editorUrl: 'phpstorm://open?file=%%file%%&line=%%line%%'

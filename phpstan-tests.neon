@@ -1,0 +1,38 @@
+includes:
+    - phpstan.neon
+    - vendor/pestphp/pest/extension.neon
+    - vendor/pestphp/pest/phpstan-pest-extension.neon
+    - vendor/shipmonk/dead-code-detector/rules.neon
+
+services:
+    -
+        class: Tests\Support\PHPStan\PestClosureThis
+        tags:
+            - phpstan.functionParameterClosureThisExtension
+    -
+        class: Tests\Support\PHPStan\PestUsesCallClosureThis
+        tags:
+            - phpstan.methodParameterClosureThisExtension
+    -
+        class: Tests\Support\PHPStan\PestArchFunction
+        tags:
+            - phpstan.broker.dynamicFunctionReturnTypeExtension
+    -
+        class: Tests\Support\PHPStan\LaravelMagicUsage
+        tags:
+            - shipmonk.deadCode.memberUsageProvider
+
+parameters:
+    featureToggles:
+        internalTag: false
+
+    paths:
+        - tests
+
+    level: 10
+
+    shipmonkDeadCode:
+        detect:
+            deadEnumCases: false
+            deadProperties:
+                neverRead: false
