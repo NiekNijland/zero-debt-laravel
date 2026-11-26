@@ -23,6 +23,7 @@ return Application::configure(basePath: dirname(__DIR__))
             Route::middleware([SubstituteBindings::class, SetLocale::class, 'throttle:read'])->group(__DIR__ . '/../routes/web.php');
         },
     )
+    ->withCommands([__DIR__ . '/../app/Modules/Notes/Commands'])
     ->withEvents(discover: [__DIR__ . '/../app/Modules/*/Listeners'])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [SetApiLocale::class]);
