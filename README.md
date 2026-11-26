@@ -135,7 +135,7 @@ Proven on GitHub Actions, on `ubuntu-24.04` with PHP 8.4 and a PostgreSQL 17 ser
 - a pull request: the four parts with the gate against the base branch, the secret scan, the tests with the mutation run on the changed files, the smoke job and the aggregate job `checks-result`;
 - the gate refusing a pull request that raises a cap that stands at 0, and accepting the same file pushed to `main` (`KIT-FINDINGS.md`, P4-1);
 - the scheduled job: the full dashboard with its online rows and the mutation run over the whole tree, started from a throwaway branch;
-- the kit sync (it finds the pin equal to the kit's head and stops) and the canary, started by hand.
+- the kit sync (it finds the pin equal to the kit's head and stops) and the canary, started by hand against kit commit 119d889: the canary finds `tools/doctor.sh`, applies the upgrade, puts the task lines back and runs the self-test, the rows, the dashboard and the `static` and `guards` parts with the kit's scripts (it needed `--main` and the kit checkout moved out of the workspace, which the first two runs showed).
 
 Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17:
 
