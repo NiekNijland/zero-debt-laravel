@@ -46,7 +46,7 @@ The files that carry the guards are covered by a code-owners rule that names a p
 
 These settings live on the host and are the owner's to set and to read back:
 
-- Branch protection on `main`: require a pull request, require review from code owners with no bypass, require the status checks `checks-result`, `backend-tests` and `smoke`, and require branches to be up to date before merging.
+- Branch protection on `main`: require a pull request, require review from code owners, require the status checks `checks-result`, `backend-tests` and `smoke`, and require branches to be up to date before merging. The repository of this template has it set, with repository admins allowed to bypass so that the single owner can still push; a project with a team sets no bypass.
 - The setting "Allow GitHub Actions to create and approve pull requests" (Settings, Actions, General): the bump pull request of `docs/kit-sync.md` is opened with the default token. A pull request opened with the default token starts no checks, so the secret `KIT_SYNC_TOKEN`, a token that may open pull requests, is optional: when it is set, the workflow uses it and the bump pull request starts the checks.
 - No merge queue: the workflow has no `merge_group` trigger on purpose.
 

@@ -146,7 +146,6 @@ Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17:
 Not proven:
 
 - the bump pull request of the kit sync has never been opened: it needs a kit commit after the pinned one, and the pin is the kit's head (the doctor's upgrade was applied by hand to reach 119d889, and the sync's task-line step was run on a copy only);
-- the branch protection of `docs/ci.md` is not set on the host, so a merge is not yet blocked by the required checks or the code-owner review;
 - the mutation floor was measured with four processes (`MUTATION_PROCESSES` in `scripts/mutation.sh`); a different count flaked on the first measurement, and the floor includes the eight uncovered mutants of the `#[Fillable]` and `#[Hidden]` lines.
 
 `KIT-FINDINGS.md` lists what building this starter found wrong or missing in the kit.
