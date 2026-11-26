@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 
 # Turns this template into your project, once. It sets the project name, the ticket prefix, the database image, the base
-# branch and the code owner in every file that holds them, refreshes the lock file hash, and deletes itself with its test.
+# branch and the code owner in every file that holds them (the owner replaces the one of every rule of .github/CODEOWNERS),
+# drops the badges of the template from the README, refreshes the lock file hash, and deletes itself with its test.
 #
 #   bash scripts/init.sh [--dry-run] [--name <kebab-case name>] [--vendor <composer vendor>] [--ticket <PREFIX|NOTICKET>]
 #                        [--database-image <postgres:NN>] [--base-branch <branch>] [--owner <@user|@org/team>]
@@ -26,7 +27,7 @@ BASE=""
 OWNER=""
 
 usage() {
-    sed -n '3,12p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
+    sed -n '3,13p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//' >&2
     exit 64
 }
 
@@ -94,7 +95,7 @@ else
     ZERO="$TICKET_PREFIX-0"
 fi
 
-FILES=(composer.json .env.example README.md scripts/kit-config.sh scripts/ci-commit-messages.sh .github/CODEOWNERS renovate.json .github/workflows/kit-checks.yml .github/workflows/kit-sync.yml)
+FILES=(composer.json .env.example compose.yaml README.md scripts/kit-config.sh scripts/ci-commit-messages.sh .github/CODEOWNERS renovate.json .github/workflows/kit-checks.yml .github/workflows/kit-sync.yml)
 for file in "${FILES[@]}"; do
     [ -f "$file" ] || fail "$file is missing: this is not the template (run the script from a clean copy of it)"
 done
@@ -126,6 +127,7 @@ edit() {
 echo "Init: $([ "$DRY" -eq 1 ] && echo 'dry run, nothing is written' || echo 'writing')"
 edit composer.json "s|^(    \"name\": \")[^\"]*(\",)\$|\\1$VENDOR/$NAME\\2|; s|^(    \"description\": \")[^\"]*(\",)\$|\\1$NAME: a Laravel API with the zero-debt guards.\\2|" "name $VENDOR/$NAME"
 edit .env.example "s|^APP_NAME=.*\$|APP_NAME=$NAME|" "APP_NAME=$NAME"
+edit compose.yaml "s|^(    image: )postgres:[0-9.]+\$|\\1$IMAGE|" "service image $IMAGE"
 edit README.md "1s|^# .*\$|# $NAME|" "title $NAME"
 edit scripts/kit-config.sh "s|^DEFAULT_BASE_BRANCH=\"[^\"]*\"|DEFAULT_BASE_BRANCH=\"$BASE\"|; s|^DATABASE_IMAGE=\"[^\"]*\"|DATABASE_IMAGE=\"$IMAGE\"|" "DEFAULT_BASE_BRANCH=$BASE, DATABASE_IMAGE=$IMAGE"
 edit scripts/ci-commit-messages.sh "s|^TICKET='[^']*'|TICKET='$TICKET_PATTERN'|; s|^EXAMPLE='[^']*'|EXAMPLE='$EXAMPLE'|" "TICKET=$TICKET_PATTERN"
@@ -147,9 +149,12 @@ tmp="$(mktemp)"
 awk '/<!-- init:start -->/ { skip = 1; next } /<!-- init:end -->/ { skip = 0; next } !skip { print }' README.md > "$tmp"
 cat "$tmp" > README.md
 rm -f "$tmp"
-echo "  set        README.md: init block removed"
+awk '/<!-- badges:start -->/ { skip = 1; next } /<!-- badges:end -->/ { skip = 0; next } !skip { print }' README.md > "$tmp"
+cat "$tmp" > README.md
+rm -f "$tmp"
+echo "  set        README.md: init block and badges removed"
 
-LEFT="$(grep -rIn --exclude-dir=vendor --exclude-dir=.git --exclude-dir=node_modules -e 'zero-debt/laravel' -e '@OWNER' . | grep -v -e '^\./scripts/init\.sh' -e '^\./tests/Unit/InitScriptTest\.php' -e '^\./KIT-FINDINGS\.md' -e '^\./docs/' || [ "$?" -eq 1 ])"
+LEFT="$(grep -rIn --exclude-dir=vendor --exclude-dir=.git --exclude-dir=node_modules -e 'zero-debt/laravel' -e '@OWNER' -e 'NiekNijland/zero-debt-laravel' . | grep -v -e '^\./scripts/init\.sh' -e '^\./tests/Unit/InitScriptTest\.php' -e '^\./KIT-FINDINGS\.md' -e '^\./docs/' || [ "$?" -eq 1 ])"
 if [ -n "$LEFT" ]; then
     printf '%s\n' "$LEFT" >&2
     fail "a placeholder is left in the files above"

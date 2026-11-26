@@ -6,7 +6,7 @@ use Symfony\Component\Process\Process;
 use Tests\Support\Narrow;
 use Tests\Support\SourceSandbox;
 
-$files = ['composer.json', 'composer.lock', '.env.example', 'README.md', 'scripts/kit-config.sh', 'scripts/ci-commit-messages.sh', '.github/CODEOWNERS', 'renovate.json', '.github/workflows/kit-checks.yml', '.github/workflows/kit-sync.yml', 'scripts/init.sh'];
+$files = ['composer.json', 'composer.lock', '.env.example', 'compose.yaml', 'README.md', 'scripts/kit-config.sh', 'scripts/ci-commit-messages.sh', '.github/CODEOWNERS', 'renovate.json', '.github/workflows/kit-checks.yml', '.github/workflows/kit-sync.yml', 'scripts/init.sh'];
 
 $sandbox = static function (int $composerStatus = 0) use ($files): string {
     $root = dirname(__DIR__, 2);
@@ -98,7 +98,9 @@ it('sets the name, ticket, image, branch and owner in every file that holds them
             ->and($read('scripts/kit-config.sh'))->toContain('DATABASE_IMAGE="postgres:18"')
             ->and($read('scripts/ci-commit-messages.sh'))->toContain("TICKET='ACME-[0-9]+'")
             ->and($read('scripts/ci-commit-messages.sh'))->toContain("EXAMPLE='ACME-123 feat: add the export'")
-            ->and($read('.github/CODEOWNERS'))->not->toContain('@OWNER')
+            ->and($read('.github/CODEOWNERS'))->not->toContain('@NiekNijland')
+            ->and($read('compose.yaml'))->toContain('    image: postgres:18')
+            ->and($read('README.md'))->not->toContain('badge.svg')
             ->and($read('.github/CODEOWNERS'))->toContain('/scripts/ @acme/platform')
             ->and($read('renovate.json'))->toContain('"commitMessagePrefix": "ACME-0 chore(deps):"')
             ->and($read('.github/workflows/kit-checks.yml'))->toContain("branches: ['develop']")
