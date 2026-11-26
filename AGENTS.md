@@ -49,7 +49,7 @@ When two sources disagree, the higher one wins:
 **Backend and tooling**
 
 - Run the whole gate with `bash scripts/checks.sh` or `composer test`. CI runs the same file, split into parts, and `docs/ci.md` says what each part does. `composer lint` rewrites the tree with Rector and Pint; the checks only read.
-- The database is PostgreSQL 17. Tests run on a real PostgreSQL 17 at the host and port of `phpunit.xml`; the README starts one with `docker run`.
+- The database is PostgreSQL 17. Tests run on a real PostgreSQL 17 at the host and port that `phpunit.xml` pins, 127.0.0.1:5432; `compose.yaml` starts one, and the CI services publish the same port.
 - No comments by default. A comment stays only when a future reader would act differently because of it. The ratchet row `comments` counts the comment lines of `app`, `bootstrap`, `config`, `database`, `routes`, `lang` and `tests` and fails a pull request that adds one.
 - `bash scripts/debt-dashboard.sh --final` runs every counter against its goal; `bash scripts/ci-ratchets.sh --head` prints every ratchet row. All rows are at 0 and stay there.
 - Commit messages start with the ticket and a type, for example `NOTICKET feat: add the export`. The type is `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `style`, `ci`, `perf`, `build` or `revert`, with an optional scope. `scripts/ci-commit-messages.sh` fails a pull request with a commit that has neither.

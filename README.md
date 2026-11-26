@@ -1,5 +1,10 @@
 # zero-debt-laravel
 
+<!-- badges:start -->
+[![Kit checks](https://github.com/NiekNijland/zero-debt-laravel/actions/workflows/kit-checks.yml/badge.svg?branch=main)](https://github.com/NiekNijland/zero-debt-laravel/actions/workflows/kit-checks.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+<!-- badges:end -->
+
 A Laravel 13 API starter at the end state of the [zero-debt kit](https://github.com/NiekNijland/zero-debt-kit-laravel): one way per task, a guard in CI for every rule, and every counter at zero from the first commit.
 
 ## Why
@@ -25,15 +30,25 @@ The script asks for what you do not give it: the project name, the Composer vend
 ## Quick start
 
 ```sh
-docker run -d --name starter-pg -e POSTGRES_USER=laravel -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=laravel -p 5440:5432 postgres:17
-composer install
 cp .env.example .env
+docker compose up -d --wait
+composer install
 php artisan key:generate
 php artisan migrate --seed
 composer test
 ```
 
-Set `DB_PORT=5440` in `.env`: it is the port `phpunit.xml` uses, and the one in the command above. Requirements: PHP 8.4 or later, Composer, a PostgreSQL 17 server, `pcov` for the coverage floor, `jq`, and `gitleaks` for the secret scan of the checks.
+`compose.yaml` starts PostgreSQL 17 with the test credentials of `.env.example` on `127.0.0.1:5432`, the port that `phpunit.xml`, `.env.example` and the CI services use. The seed creates the permissions and a demo user, `demo@example.test`, with a random password that is never printed; there is no login route, so sign in with a token:
+
+```sh
+php artisan serve
+TOKEN="$(php artisan notes:issue-token demo@example.test)"
+curl -H "Authorization: Bearer $TOKEN" -H 'Accept: application/json' http://localhost:8000/api/v1/notes
+```
+
+Port 5432 taken? Set `DB_PORT=5433` in `.env`: `docker compose` and the application read it. The tests pin their own database settings in `phpunit.xml` and never read `.env`, so run them as `DB_PORT=5433 composer test`.
+
+Requirements: PHP 8.4 or later, Composer, Docker (or any PostgreSQL 17 server with the credentials of `compose.yaml`), `pcov` for the coverage floor, `jq`, and `gitleaks` for the secret scan of the checks.
 
 | Command | What it does |
 | --- | --- |
@@ -64,7 +79,7 @@ Set `DB_PORT=5440` in `.env`: it is the port `phpunit.xml` uses, and the one in 
 | The pipeline | `CiContractArchitectureTest`: a workflow that narrows a check; `CodeOwnersArchitectureTest`: a guard file with no owner |
 | The guides | `DocumentedPathArchitectureTest`: a path in a guide that is gone; `GuideRulesArchitectureTest`: a guide that lost the words of a rule; `OnePatternRubricArchitectureTest`: a row of the one-pattern table missing from the rubric |
 
-**The ratchets, all at zero.** `scripts/ci-ratchets.sh` counts the rows of the kit's start set plus its caps: `analyser-baseline`, `analyser-ignore`, `analyser-level`, `refactor-skip`, `audit-ignore`, `audit-exceptions`, `test-skip`, `test-doubles`, `event-fake-all`, `lint-disable`, `lint-config-off`, `lint-config-ignores`, `lint-baseline`, `type-baseline`, `ts-suppressions`, `frontend-test-skip`, `comments`, `todo`, `ci-skipped-steps`, `strict-types-missing`, `loose-comparisons`, `mutable-dates`, `byte-string-functions`, `queue-bus-fake-all`, `guide-future-tense`, `unused-ignore` and one `cap-<key>` row per key of `scripts/debt-caps.json`. Their counterparts that may only go up are held at their goal: `refactor-sets` at 19, `formatter-rules` at 21, `advisory-block` at 1, `coverage-floor` and `mutation-floor` at their committed numbers. The dashboard (`scripts/debt-dashboard.sh --final`) adds files over 400 lines, open classes, classes with no test of their own, docs past their age limit and the package audit.
+**The ratchets, all at zero.** `scripts/ci-ratchets.sh` counts the rows of the kit's start set plus its caps: `analyser-baseline`, `analyser-ignore`, `analyser-level`, `refactor-skip`, `audit-ignore`, `audit-exceptions`, `test-skip`, `test-doubles`, `event-fake-all`, `lint-disable`, `lint-config-off`, `lint-config-ignores`, `lint-baseline`, `type-baseline`, `ts-suppressions`, `frontend-test-skip`, `comments`, `todo`, `ci-skipped-steps`, `strict-types-missing`, `loose-comparisons`, `mutable-dates`, `byte-string-functions`, `queue-bus-fake-all`, `guide-future-tense`, `unused-ignore` and one `cap-<key>` row per key of `scripts/debt-caps.json`. Their counterparts that may only go up are held at their goal: `refactor-sets` at 19, `formatter-rules` at 21, `advisory-block` at 1, `analyser-switches` at 7, `coverage-floor` and `mutation-floor` at their committed numbers. The dashboard (`scripts/debt-dashboard.sh --final`) adds files over 400 lines, open classes, classes with no test of their own, docs past their age limit and the package audit.
 
 **The documents.** `AGENTS.md` (glossary, product areas, which source wins, house rules, the one-pattern table), `app/AGENTS.md`, `tests/AGENTS.md`, `docs/decisions/0001-one-backend-pattern.md`, `docs/review-rubric.md`, `docs/ci.md`, `docs/kit-sync.md` and `docs/guards/ci-contract.md`.
 
@@ -109,7 +124,7 @@ The two differ in what they start from. The other kit gives a strict skeleton an
 
 - No frontend: no Blade views, no Inertia, no Livewire. The `FRONTEND_*` settings of the kit's scripts are empty and the frontend rows count nothing. The kit's frontend guards, layers and lint rules have no variant in this starter, and the other kit above has Blade, React and Vue repositories.
 - No multi-tenancy, no queue jobs, events, mail or notifications, so the register of stored class names has no subject.
-- No signed-in step in the smoke job: the seed creates permissions and no principal.
+- No login route: a token is issued with `php artisan notes:issue-token <email>`, and the demo user exists outside production only.
 - No container image for the CI jobs: the toolchain comes from `shivammathur/setup-php`, and the kit's skeleton pins an image by digest.
 - Two dashboard rows have no subject in a new project: `model-strictness-violations` has no list of violations to count, and `cap-ci-duration-minutes` reads `UNKNOWN` online for a repository that has no GitHub host.
 
