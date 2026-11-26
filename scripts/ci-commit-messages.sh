@@ -8,9 +8,10 @@ TICKET='NOTICKET'
 TYPES='feat|fix|refactor|test|docs|chore|style|ci|perf|build|revert'
 EXAMPLE='NOTICKET feat: add the export'
 # Titles a tool or the host writes, accepted without the form (an extended regular expression, matched over the whole subject).
-# A commit with more than one parent is never checked, so "Merge branch ..." and "Merge pull request ..." are not listed: on a
-# single-parent commit they would hide work behind a generated-looking title. A project that keeps a tool-made title adds its
-# exact text here, for as long as open branches hold it.
+# The default lists none: a commit with more than one parent is never checked, so "Merge branch ...", "Merge pull request ..." and
+# the host's synthetic merge titles need no entry, and on a single-parent commit they would hide work behind a generated-looking
+# title. A revert is judged by the script: Revert "<subject>" and Reapply "<subject>" pass when the quoted subject has the form.
+# A project that keeps another tool-made title adds its exact text here, for as long as open branches hold it.
 GENERATED='^(Merge [0-9a-f]{7,40} into [0-9a-f]{7,40}|Merged in .+ \(pull request #[0-9]+\)|Revert ".+"|Reapply ".+")$'
 # The base branch, the remote and the host's variables are in kit-config.sh, next to this script.
 # <<< config
@@ -46,8 +47,14 @@ for variable in $HEAD_BRANCH_VARS; do
     [ -n "$HEAD_BRANCH" ] || HEAD_BRANCH=$(eval "printf '%s' \"\${$variable:-}\"")
 done
 
+# A branch name that starts with a dash would be read as an option: kit-config.sh holds the shared check.
+kit_check_branches || fail "$KIT_BRANCH_ERROR"
+kit_local_base "$BASE_BRANCH" || fail "$KIT_BRANCH_ERROR"
+
 BASE_REF="refs/remotes/$REMOTE/$BASE_BRANCH"
-if ! git fetch -q "$REMOTE" "+refs/heads/$BASE_BRANCH:$BASE_REF" 2> /dev/null; then
+if [ "$KIT_LOCAL_BASE" -eq 1 ]; then
+    echo "Commit messages: no remote $REMOTE: the local branch $BASE_BRANCH stands in for $REMOTE/$BASE_BRANCH (a developer's machine only)" >&2
+elif ! git fetch -q -- "$REMOTE" "+refs/heads/$BASE_BRANCH:$BASE_REF" 2> /dev/null; then
     git rev-parse -q --verify "$BASE_REF" > /dev/null || fail "cannot fetch $REMOTE/$BASE_BRANCH"
     [ -z "${CI:-}" ] || fail "cannot fetch $REMOTE/$BASE_BRANCH in a CI run, so the copy already here may be stale"
     echo "Commit messages: cannot fetch $REMOTE/$BASE_BRANCH; comparing against the copy already here (a developer's machine only)" >&2
@@ -59,11 +66,8 @@ DEPTH="Clone with full depth (Bitbucket: clone depth full; GitHub: fetch-depth 0
 for deepen in 200 2000 all; do
     ! git merge-base "$HEAD_SHA" "$BASE_TIP" > /dev/null 2>&1 || break
     [ "$(git rev-parse --is-shallow-repository)" = "true" ] || break
-    if [ "$deepen" = "all" ]; then
-        git fetch -q --unshallow "$REMOTE" "$BASE_BRANCH" ${HEAD_BRANCH:+"$HEAD_BRANCH"} 2> /dev/null || fail "cannot fetch the full history. $DEPTH"
-    else
-        git fetch -q --deepen="$deepen" "$REMOTE" "$BASE_BRANCH" ${HEAD_BRANCH:+"$HEAD_BRANCH"} 2> /dev/null || fail "cannot deepen the shallow clone. $DEPTH"
-    fi
+    # The head branch is a courtesy inside kit_deepen: a pull request from a fork has none on this remote.
+    kit_deepen "$deepen" || fail "cannot $([ "$deepen" = "all" ] && echo "fetch the full history" || echo "deepen the shallow clone"). $DEPTH"
 done
 git merge-base "$HEAD_SHA" "$BASE_TIP" > /dev/null 2>&1 || fail "no merge base between $HEAD_SHA and $REMOTE/$BASE_BRANCH, so the commits of this pull request cannot be listed. $DEPTH"
 
@@ -76,7 +80,12 @@ while read -r commit parents; do
     [ -z "${parents#* }" ] || [ "$parents" = "${parents#* }" ] || continue
     subject=$(git log -1 --format=%s "$commit")
     CHECKED=$((CHECKED + 1))
-    if ! grep -q -E -e "$FORM" <<< "$subject" && ! grep -q -E -e "$GENERATED" <<< "$subject"; then
+    # Revert "<subject>" and Reapply "<subject>" (also nested) are judged by the subject they quote.
+    judged="$subject"
+    while [[ "$judged" =~ ^(Revert|Reapply)\ \"(.+)\"$ ]]; do
+        judged="${BASH_REMATCH[2]}"
+    done
+    if ! grep -q -E -e "$FORM" <<< "$judged" && ! grep -q -E -e "$GENERATED" <<< "$subject"; then
         INVALID="$INVALID${commit:0:9} $subject"$'\n'
     fi
 done <<< "$(git log --format='%H %P' "$BASE_TIP..$HEAD_SHA")"

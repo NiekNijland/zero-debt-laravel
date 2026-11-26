@@ -21,7 +21,11 @@ MAIN="${1:-}"
 if [ -z "$MAIN" ]; then
     . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kit-config.sh"
     BASE="${CHECK_BASE:-$DEFAULT_BASE_BRANCH}"
-    git fetch -q "$REMOTE" "+refs/heads/$BASE:refs/remotes/$REMOTE/$BASE" || {
+    kit_local_base "$BASE" || {
+        echo "Prepush: $KIT_BRANCH_ERROR. FAILS: nothing was checked" >&2
+        exit 1
+    }
+    [ "$KIT_LOCAL_BASE" -eq 1 ] || git fetch -q "$REMOTE" "+refs/heads/$BASE:refs/remotes/$REMOTE/$BASE" || {
         echo "Prepush: cannot fetch $REMOTE/$BASE. FAILS: nothing was checked" >&2
         exit 1
     }

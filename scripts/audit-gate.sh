@@ -61,13 +61,20 @@ not_an_audit() {
 # parser (jq, when it is installed) must read the whole text: a truncated or foreign document is not a clean audit.
 TRIMMED=$(printf '%s' "$AUDIT" | tr -d '[:space:]')
 case "$TRIMMED" in
-    "{"*"}" | "["*"]") ;;
+    "{"*"}") ;;
     "{"* | "["*) not_an_audit "the audit's JSON is incomplete (cut off, or not one document)" ;;
     *) not_an_audit "the audit printed no JSON on standard input" ;;
 esac
 printf '%s' "$AUDIT" | grep -q -E -e "$DOCUMENT_PATTERN" || not_an_audit "the audit's JSON has no key matching $DOCUMENT_PATTERN"
+# The whole text must parse as one JSON object: jq, else node, else php. With none of them the audit cannot be validated.
 if command -v jq > /dev/null 2>&1; then
-    printf '%s' "$AUDIT" | jq -e . > /dev/null 2>&1 || not_an_audit "the audit's JSON cannot be parsed (truncated?)"
+    printf '%s' "$AUDIT" | jq -e 'type == "object"' > /dev/null 2>&1 || not_an_audit "the audit's JSON cannot be parsed, or is not one object (truncated?)"
+elif command -v node > /dev/null 2>&1; then
+    printf '%s' "$AUDIT" | node -e 'const v = JSON.parse(require("fs").readFileSync(0, "utf8")); process.exit(v !== null && typeof v === "object" && !Array.isArray(v) ? 0 : 1)' > /dev/null 2>&1 || not_an_audit "the audit's JSON cannot be parsed, or is not one object (truncated?)"
+elif command -v php > /dev/null 2>&1; then
+    printf '%s' "$AUDIT" | php -r 'exit(is_array(json_decode(stream_get_contents(STDIN), true)) ? 0 : 1);' > /dev/null 2>&1 || not_an_audit "the audit's JSON cannot be parsed, or is not one object (truncated?)"
+else
+    not_an_audit "none of jq, node or php is installed to check that the audit's JSON is whole"
 fi
 
 TODAY_DAYS=$(days_of "$TODAY")

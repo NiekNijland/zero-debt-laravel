@@ -12,7 +12,9 @@ FINDING_tsc='\([0-9]+,[0-9]+\): error TS[0-9]+|:[0-9]+:[0-9]+ - error TS[0-9]+'
 NORMALIZE_tsc='s/\(([0-9]+),([0-9]+)\)//; s/:[0-9]+:[0-9]+//'
 SECTION_tsc=''
 # SKIP_<name>: empty, or an extended regular expression for a heading whose lines are not findings (the tool's own hints).
-# knip: the unused-code tool, in its default reporter: a heading per kind ("Unused exports (2)"), then one line per finding.
+# knip: the unused-code tool, in its default reporter: a heading per kind ("Unused exports (2)"), then one line per finding, its
+# columns padded with spaces (a padded last column leaves a trailing space after "file:1:2", so the trailing space goes first).
+# A clean run prints nothing and exits 0; "Configuration hints" follows the findings and is skipped. Read from knip 6.48.
 FINDING_knip='^[^[:space:]]'
 NORMALIZE_knip='s/:[0-9]+:[0-9]+$//; s/[[:space:]]+/ /g; s/ $//'
 SECTION_knip='^[A-Z][A-Za-z ]+ \([0-9]+\)$'
@@ -72,11 +74,14 @@ trap 'rm -rf "$WORK"' EXIT
 
 STATUS=0
 "$@" > "$WORK/output" 2>&1 || STATUS=$?
+# A tool that colours its output (tsc --pretty colours even into a pipe) must not hide a finding behind escape codes.
+ESC=$(printf '\033')
+sed -E "s/${ESC}\[[0-9;]*[A-Za-z]//g" "$WORK/output" > "$WORK/plain"
 FINDING="$FINDING" SECTION="$SECTION" SKIP="$SKIP" awk '
     ENVIRON["SECTION"] != "" && $0 ~ ENVIRON["SECTION"] { heading = $0; sub(/[[:space:]]*\([0-9]+\)$/, "", heading); skipping = (ENVIRON["SKIP"] != "" && heading ~ ENVIRON["SKIP"]); next }
     skipping { next }
     ENVIRON["SECTION"] != "" && heading == "" { next }
-    $0 ~ ENVIRON["FINDING"] { print (heading == "" ? "" : heading ": ") $0 }' "$WORK/output" | sed -E "${NORMALIZE:-s/^//}" | sort > "$WORK/now"
+    $0 ~ ENVIRON["FINDING"] { print (heading == "" ? "" : heading ": ") $0 }' "$WORK/plain" | sed -E "${NORMALIZE:-s/^//}" | sort > "$WORK/now"
 
 if [ "$STATUS" -ne 0 ] && [ ! -s "$WORK/now" ]; then
     echo "Keyed baseline: the command failed (exit $STATUS) without a finding in the format $FORMAT, so nothing can be compared. Its output:" >&2
@@ -87,8 +92,10 @@ fi
 if [ "$WRITE" -eq 1 ]; then
     # --write only drops fixed lines. A finding that is not in the file is growth: it needs --init, which is for the first write
     # of a file (step 2), so a command that prints something new cannot be written into the baseline by accident.
-    if [ "$INIT" -eq 0 ] && [ -s "$BASELINE" ]; then
-        sort "$BASELINE" > "$WORK/then"
+    # A missing or empty file is the empty set: with --write alone, every finding is growth (a baseline deleted "at zero" is not
+    # written back by accident).
+    if [ "$INIT" -eq 0 ]; then
+        if [ -f "$BASELINE" ]; then sort "$BASELINE" > "$WORK/then"; else : > "$WORK/then"; fi
         GROWTH=$(comm -23 "$WORK/now" "$WORK/then")
         if [ -n "$GROWTH" ]; then
             echo "Keyed baseline: --write would add findings that are not in $BASELINE. FAILS: fix them; a line is never added to the baseline (--init writes the first file)"

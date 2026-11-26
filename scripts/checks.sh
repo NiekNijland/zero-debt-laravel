@@ -186,7 +186,18 @@ if [ -z "$RUN" ]; then
             esac
         done
     fi
-    if [ "$NEEDS_BASE" -eq 1 ] && ! git fetch -q "$REMOTE" "+refs/heads/$BASE:refs/remotes/$REMOTE/$BASE"; then
+    # No remote on a developer's machine (a first local series): the local base branch stands in for REMOTE/BASE (kit-config.sh).
+    # Without a remote and without that branch, or without a remote in CI, there is no base and the run fails.
+    KIT_LOCAL_BASE=0
+    if [ "$NEEDS_BASE" -eq 1 ]; then
+        kit_local_base "$BASE" || {
+            echo "Checks: $KIT_BRANCH_ERROR. FAILS: nothing was checked" >&2
+            exit 1
+        }
+    fi
+    if [ "$KIT_LOCAL_BASE" -eq 1 ]; then
+        echo "Checks: no remote $REMOTE: the local branch $BASE stands in for $REMOTE/$BASE (a developer's machine only; on $BASE itself nothing differs from the base, so work on a branch)"
+    elif [ "$NEEDS_BASE" -eq 1 ] && ! git fetch -q "$REMOTE" "+refs/heads/$BASE:refs/remotes/$REMOTE/$BASE"; then
         echo "Checks: cannot fetch $REMOTE/$BASE, so the script guard cannot run. FAILS: nothing was checked" >&2
         exit 1
     fi
