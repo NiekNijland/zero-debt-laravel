@@ -27,7 +27,7 @@ it('detects a config value that is read without a type', function (string $sourc
 dataset('typed config reads and near misses', [
     'the typed facade accessor' => ['<?php $a = Config::string(\'app.name\');'],
     'a set and a typed read on the repository' => ['<?php Config::set(\'app.name\', \'x\'); $a = $this->config->string(\'app.name\');'],
-    'a get on another receiver and a call in a comment' => ['<?php $a = $config->get(\'app.name\'); ' . '/' . '/ config(\'app.name\')'],
+    'a get on another receiver and a call in a comment' => ['<?php $a = $config->get(\'app.name\'); ' . '/' . "/ config('app.name')"],
     'a function with the same name in a namespace' => ['<?php namespace X; $a = \X\config(\'app.name\');'],
 ]);
 
