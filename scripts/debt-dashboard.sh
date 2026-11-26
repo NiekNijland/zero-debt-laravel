@@ -20,13 +20,18 @@ SIZE_EXEMPT=''
 OPEN_CLASS='^[[:space:]]*(#\[[^]]*\][[:space:]]*)*(readonly[[:space:]]+)?class[[:space:]]'
 # The next expressions name the kit's folders. Until step 5 has moved the code, each also holds, as an alternative, every folder of
 # today that will be sorted into one of them, so a move changes no row. The alternatives go in the pull request that empties the
-# layout list.
+# layout list. The example values below name the kit's folders ONLY: a project whose classes live in other folders (app/Http,
+# app/Models, app/Support) counts too few files here, and its test rows read low (a real project: 15, 21 and 10 files with the kit's
+# folders only, 40, 69 and 15 with today's folders added). Run the dashboard with --counted to see which files each row counted, and
+# add the folders of today as alternatives until the files have moved.
 BEHAVIOR_CLASSES='^app/(.*/)?(Actions|Services|Jobs|Listeners|Commands)/(.*/)?[^/]+\.php$'
 SUPPORT_CLASSES='^app/(.*/)?(Policies|Middleware|Rules|Mail|Notifications|Casts)/(.*/)?[^/]+\.php$'
 NOT_A_CLASS='^[[:space:]]*(#\[[^]]*\][[:space:]]*)*(abstract[[:space:]]+(readonly[[:space:]]+)?class|readonly[[:space:]]+abstract[[:space:]]+class|interface|trait)[[:space:]]'
 # What a test file adds to the name of the file it covers: OrderService.php and OrderServiceTest.php give "Test";
 # order-service.ts and order-service.test.ts give ".test".
 TEST_NAME_SUFFIX="Test"
+# Logic is every TypeScript file that is not a component (.tsx) and not a test (FRONTEND_NOT_COUNTED), in any folder, plus a hook
+# written in a .tsx file (use-*.tsx). A project narrows it to folders only with a decision row in the plan.
 FRONTEND_LOGIC=''
 FRONTEND_COMPONENTS=''
 FRONTEND_NOT_COUNTED=''
@@ -77,24 +82,27 @@ SHARED_CONFIG="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kit-config.sh"
 set -uo pipefail
 
 usage() {
-    echo "Usage: bash debt-dashboard.sh [--final] [--offline] [--details] [--report]"
+    echo "Usage: bash debt-dashboard.sh [--final] [--offline] [--details] [--counted] [--report]"
     echo "  (default)  the gate: fails when a row is above its cap or cannot be measured; a ratchet row is held by the ratchet"
     echo "  --final    fails every row above zero, except the shrink-only rows, every cap that is above its row,"
     echo "             analyser-switches below ANALYSER_SWITCHES_TARGET, and every min row below its number in MIN_ROW_TARGETS"
     echo "  --offline  skips the rows that need a package registry, full git history or today's date"
     echo "  --details  lists the files behind every row that is not at zero"
+    echo "  --counted  lists the files each test row counted (the 'of N' set), so a folder the expressions miss shows"
     echo "  --report   always exits 0"
 }
 
 FINAL=0
 OFFLINE=0
 DETAILS=0
+COUNTED=0
 REPORT=0
 for argument in "$@"; do
     case "$argument" in
         --final) FINAL=1 ;;
         --offline) OFFLINE=1 ;;
         --details) DETAILS=1 ;;
+        --counted) COUNTED=1 ;;
         --report) REPORT=1 ;;
         -h | --help)
             usage
@@ -272,6 +280,12 @@ detail() {
     [ "$DETAILS" -eq 1 ] || return 0
     [ -n "$2" ] || return 0
     printf '\n%s\n%s\n' "$1" "$2" >> "$DETAIL_FILE"
+}
+
+# counted <title> <files>: what a test row counted, printed by --counted whatever the row's value.
+counted() {
+    [ "$COUNTED" -eq 1 ] || return 0
+    printf '\n%s (%s)\n%s\n' "$1" "$(count_lines "$2")" "$2" >> "$DETAIL_FILE"
 }
 
 oversized() {
@@ -477,6 +491,7 @@ detail "Concrete classes that are open for extension" "$OPEN_CLASSES"
 
 BEHAVIOR=$(tracked "$BEHAVIOR_CLASSES" | except "$TEST_FILES" | real_classes)
 NO_NAMES=$(printf '%s' "$BEHAVIOR" | grep . | without_reference "$(referenced_names)")
+counted "Counted: behavior classes (BEHAVIOR_CLASSES)" "$BEHAVIOR"
 measured_row tests "classes-no-test-names" "$(count_lines "$NO_NAMES")"
 detail "Behavior classes that no test file imports or names with :: ($(count_lines "$NO_NAMES") of $(count_lines "$BEHAVIOR"))" "$NO_NAMES"
 
@@ -485,16 +500,19 @@ measured_row tests "classes-without-own-test" "$(count_lines "$NO_OWN")"
 detail "Behavior classes without a <Class>$TEST_NAME_SUFFIX file ($(count_lines "$NO_OWN") of $(count_lines "$BEHAVIOR"))" "$NO_OWN"
 
 SUPPORT=$(tracked "$SUPPORT_CLASSES" | except "$TEST_FILES" | real_classes)
+counted "Counted: support classes (SUPPORT_CLASSES)" "$SUPPORT"
 SUPPORT_NO_OWN=$(printf '%s' "$SUPPORT" | grep . | without_own_test)
 measured_row tests "support-classes-without-own-test" "$(count_lines "$SUPPORT_NO_OWN")"
 detail "Support classes without a <Class>$TEST_NAME_SUFFIX file ($(count_lines "$SUPPORT_NO_OWN") of $(count_lines "$SUPPORT"))" "$SUPPORT_NO_OWN"
 
 LOGIC=$(tracked "$FRONTEND_LOGIC" | except "$FRONTEND_NOT_COUNTED")
+counted "Counted: frontend logic files (FRONTEND_LOGIC)" "$LOGIC"
 LOGIC_NO_TEST=$(printf '%s' "$LOGIC" | grep . | without_sibling_test)
 measured_row tests "frontend-logic-without-test" "$(count_lines "$LOGIC_NO_TEST")"
 detail "Frontend logic files without a <file>.$FRONTEND_TEST_INFIX file next to them ($(count_lines "$LOGIC_NO_TEST") of $(count_lines "$LOGIC"))" "$LOGIC_NO_TEST"
 
 COMPONENTS=$(tracked "$FRONTEND_COMPONENTS" | except "$FRONTEND_NOT_COUNTED" | except "$FRONTEND_LOGIC")
+counted "Counted: frontend components (FRONTEND_COMPONENTS)" "$COMPONENTS"
 COMPONENTS_NO_TEST=$(printf '%s' "$COMPONENTS" | grep . | without_sibling_test)
 measured_row tests "frontend-components-without-test" "$(count_lines "$COMPONENTS_NO_TEST")"
 detail "Frontend components without a <file>.$FRONTEND_TEST_INFIX file next to them ($(count_lines "$COMPONENTS_NO_TEST") of $(count_lines "$COMPONENTS"))" "$COMPONENTS_NO_TEST"
@@ -530,6 +548,13 @@ else
             /^@/ { time = substr($0, 2) + 0; next }
             $0 != "" && !($0 in seen) { seen[$0] = 1; if (time < cut && ($0 in known)) print $0 }' <(printf '%s\n' "$DOCS_TRACKED") <(printf '%s\n' "$DOCS_LOG") | sort)
         measured_row docs "docs-older-than-limit" "$(count_lines "$DOCS_OLD")"
+        # A repository younger than the limit has no doc that is old enough: the row reads 0 because it cannot fire, not because the docs are fresh.
+        FIRST_COMMIT=$(git log --max-parents=0 --format=%ct 2> /dev/null | sort -n | awk 'NR == 1')
+        if [[ "$FIRST_COMMIT" =~ ^[0-9]+$ ]] && [ "$FIRST_COMMIT" -ge "$CUT" ]; then
+            FIRES_AT=$((FIRST_COMMIT + DOCS_MAX_AGE_DAYS * 86400))
+            FIRES_ON=$(date -u -r "$FIRES_AT" +%Y-%m-%d 2> /dev/null || date -u -d "@$FIRES_AT" +%Y-%m-%d 2> /dev/null || echo "?")
+            printf '%-8s %s\n' "" "docs-older-than-limit cannot fire before $FIRES_ON: the first commit of this repository is newer than $DOCS_MAX_AGE_DAYS days, so 0 does not say the docs are fresh"
+        fi
         detail "Docs whose last change is older than $DOCS_MAX_AGE_DAYS days: update, move to the archive folder or delete" "$DOCS_OLD"
     fi
 fi
@@ -575,6 +600,7 @@ printf '\n%s rows: %s at target or held, %s open, %s not measured, %s skipped\n'
 if [ "$FINAL" -eq 1 ] && [ "$SKIPPED" -gt 0 ]; then
     printf 'Final: %s row(s) were skipped, so this run does not prove the end state: the run without --offline measures them (a row that needs a host or a registry prints UNKNOWN there when it cannot be measured, and fails).\n' "$SKIPPED"
 fi
+printf 'The test rows counted: %s behavior classes, %s support classes, %s frontend logic files, %s frontend components (--counted lists them; a folder missing from the expressions of the config block shows as too few)\n' "$(count_lines "$BEHAVIOR")" "$(count_lines "$SUPPORT")" "$(count_lines "$LOGIC")" "$(count_lines "$COMPONENTS")"
 cat "$DETAIL_FILE"
 
 [ "$REPORT" -eq 1 ] || [ "$((OPEN + UNKNOWN))" -eq 0 ]
