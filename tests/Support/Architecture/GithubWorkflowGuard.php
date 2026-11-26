@@ -211,7 +211,7 @@ final readonly class GithubWorkflowGuard
         $violations = $scheduled === [] ? ['[scheduled-run] no job runs exactly `' . $this->checksCommand . ' --scheduled`'] : [];
 
         foreach ($scheduled as $id => $job) {
-            if (! str_contains(YamlNode::text($job['if'] ?? ''), 'schedule')) {
+            if (! in_array(mb_trim(YamlNode::text($job['if'] ?? '')), ['github.event_name ' . self::EQUALS . " 'schedule'", 'github.event_name ' . self::EQUALS . " 'schedule' || github.ref_name " . self::EQUALS . " 'scheduled-proof'"], true)) {
                 $violations[] = '[scheduled-run] job `' . $id . '` runs the scheduled checks on another condition than the schedule event';
             }
 
