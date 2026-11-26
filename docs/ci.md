@@ -9,7 +9,7 @@ The pipeline is one workflow file of its own, `.github/workflows/kit-checks.yml`
 | checks | every pull request | `bash scripts/checks.sh --part <name>`, one step per part of the checks script (`gate`, `static`, `guards`, `repo`) as a matrix; the aggregate job `checks-result` fails unless every part passed |
 | checks on the main branch | every push to `main` | the same parts with `--main`, which has no base to compare with |
 | tests | every pull request and every push to `main` | `composer test:unit`: Pest in parallel with pcov coverage held at the committed floor; on a pull request also the mutation tests on the changed files |
-| smoke | every pull request and every push to `main` | a stack booted with seeded data and the production drivers, then four requests |
+| smoke | every pull request and every push to `main` | a stack booted with seeded data and the production drivers, then five checks, the last one signed in |
 | scheduled | once a day | `bash scripts/checks.sh --scheduled`, the full dashboard with its online rows, and the whole-tree mutation run |
 
 There are five runs, and the checks run has no path filter: a pull request that only edits a guide runs every check. No job has a manual trigger, and nothing is allowed to fail: no `continue-on-error`, no `|| true`, no job switched off.
@@ -23,7 +23,7 @@ There are five runs, and the checks run has no path filter: a pull request that 
 - **Full history.** Every checkout sets `fetch-depth: 0` and none sets `persist-credentials: false`, because the checks script fetches the base with the credentials the checkout leaves.
 - **Read only.** The workflow has `contents: read` at the top, a job that needs more says so on the job, and no check job writes: nothing commits, adds or pushes. `pull_request_target` is never used. The concurrency group cancels the older run of a pull request and never a push to `main`.
 - **Lock file.** Every install is `composer install` from the lock file; `composer update` and `composer require` never run in a check.
-- **The database.** The service image is `postgres:17`, the value of `DATABASE_IMAGE` in `scripts/kit-config.sh`, with a password, a health check and a published port. The smoke job sets the production drivers: database cache, database queue and the `pgsql` connection.
+- **The database.** The service image is `postgres:17`, the value of `DATABASE_IMAGE` in `scripts/kit-config.sh`, with a password, a health check and the published port 5432, the port of `compose.yaml` and `phpunit.xml`. The smoke job sets the production drivers: database cache, database queue and the `pgsql` connection.
 - **Mutation.** The tests job runs `bash scripts/mutation.sh --changed` on a pull request; the scheduled job runs `bash scripts/mutation.sh` over the whole tree.
 - **One suite per trigger.** A suite runs once per trigger: no two jobs or workflows run `composer test:unit` on the same event.
 
@@ -52,7 +52,7 @@ These settings live on the host and are the owner's to set and to read back:
 
 ## Smoke
 
-The smoke job migrates and seeds a PostgreSQL 17 database, starts the built-in PHP server with the production drivers in its environment and checks four things: the application reports the cache, queue, session and database drivers of production; a page answers with its body; the API refuses a request without a token with the translated message; the rate limit header is present. It has no signed-in step, because the seed creates no principal.
+The smoke job migrates and seeds a PostgreSQL 17 database, starts the built-in PHP server with the production drivers in its environment and checks five things: the application reports the cache, queue, session and database drivers of production; a page answers with its body; the API refuses a request without a token with the translated message; the rate limit header is present; the demo user signs in with a token, writes a note and reads it back. The production seed creates the permissions and no user, because `DemoUserSeeder` refuses to run in production; the job runs that one seeder with `APP_ENV=local` and issues the token with `php artisan notes:issue-token`, so no password or token is stored in the repository.
 
 ## Not applicable here
 
