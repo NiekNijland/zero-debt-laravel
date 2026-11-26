@@ -12,7 +12,7 @@ EXAMPLE='NOTICKET feat: add the export'
 # the host's synthetic merge titles need no entry, and on a single-parent commit they would hide work behind a generated-looking
 # title. A revert is judged by the script: Revert "<subject>" and Reapply "<subject>" pass when the quoted subject has the form.
 # A project that keeps another tool-made title adds its exact text here, for as long as open branches hold it.
-GENERATED='^(Merge [0-9a-f]{7,40} into [0-9a-f]{7,40}|Merged in .+ \(pull request #[0-9]+\)|Revert ".+"|Reapply ".+")$'
+GENERATED='^$'
 # The base branch, the remote and the host's variables are in kit-config.sh, next to this script.
 # <<< config
 

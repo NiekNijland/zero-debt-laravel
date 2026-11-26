@@ -51,6 +51,13 @@ case "$MODE" in
         ;;
 esac
 
+# Infection is installed with a Composer plugin (infection/extension-installer). Composer 2.2 and later runs a plugin only when the
+# manifest allows it, and without the line the install either blocks on a prompt or leaves the tool half set up, which reads like
+# a broken Infection. Only a manifest that is there is read (a project that keeps it elsewhere has no composer.json here).
+if [ "$MUTATION_TOOL" = "infection" ] && [ -r composer.json ] && ! grep -q -E '"infection/extension-installer"[[:space:]]*:[[:space:]]*true' composer.json; then
+    fail "composer.json does not allow the plugin infection/extension-installer: run composer config allow-plugins.infection/extension-installer true before composer require --dev infection/infection, and never pipe composer's output into head (the closed pipe aborts the install)"
+fi
+
 [ -r "$MUTATION_FLOOR_FILE" ] || fail "cannot read $MUTATION_FLOOR_FILE"
 FLOOR=$(sed -n -E 's/^threshold: ([0-9]+)$/\1/p' "$MUTATION_FLOOR_FILE" | awk 'NR == 1')
 [ -n "$FLOOR" ] || fail "$MUTATION_FLOOR_FILE holds no line \"threshold: N\" with N a whole number"

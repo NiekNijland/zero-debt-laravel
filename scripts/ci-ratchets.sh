@@ -79,7 +79,7 @@ lint-config-ignores                    max  block  @LINT_CONFIG  (?:ignores:\s*|
 lint-baseline                          max  json   @LINT_BASELINE  value *.*.count
 type-baseline                          max  grep   @KEYED_BASELINES  ^.
 ts-suppressions                        max  grep   @SOURCE_PATHS,@TEST_PATHS,@FRONTEND_PATHS,:(exclude)*.md  @ts-(expect-error|ignore|nocheck)
-frontend-test-skip                     max  grep   @SOURCE_PATHS,@TEST_PATHS,@FRONTEND_PATHS,:(exclude)*.md  (^|[^A-Za-z0-9_$.])(((it|test|describe)(\.(concurrent|sequential|describe|parallel|serial))*\.(skip|todo|only|skipIf|runIf|fails|fixme)[(.])|((x|f)(it|test|describe)[(]))
+frontend-test-skip                     max  grep   @SOURCE_PATHS,@TEST_PATHS,@FRONTEND_PATHS,:(exclude)*.md  (^|[^A-Za-z0-9_$.:>]|[^:]:|[^-]>)(((it|test|describe)(\.(concurrent|sequential|describe|parallel|serial))*\.(skip|todo|only|skipIf|runIf|fails|fixme)[(.])|((x|f)(it|test|describe)[(]))
 comments                               max  grep   @SOURCE_PATHS,@TEST_PATHS,@FRONTEND_PATHS,:(exclude)*.md  (^|[][[:space:];{}(),])//|(^[[:space:]]*|[;{}(),][[:space:]]+)#([[:space:]]|$)|(^|[][[:space:];{}(),])/\*([^*]|\*[[:space:]]+[^@[:space:]*/])|(^|[][[:space:];{}(),])/\*[[:space:]]*$|^[[:space:]]*\*[[:space:]]+[^@[:space:]*]|<!--|\{\{--
 todo                                   max  grep   @SOURCE_PATHS,@TEST_PATHS,@FRONTEND_PATHS,:(exclude)*.md  (^|[^A-Za-z0-9_])(TODO|FIXME|HACK|XXX)([^A-Za-z0-9_]|$)|@todo
 ci-skipped-steps                       max  grep   @CI_FILES  \|\|[[:space:]]*(true|:|exit[[:space:]]+0|command[[:space:]]+true|/(usr/)?bin/true|[({][[:space:]]*(true|:|exit[[:space:]]+0))([^A-Za-z0-9_]|$)|;[[:space:]]*(exit[[:space:]]+0|true)([^A-Za-z0-9_]|$)|set[[:space:]]+\+e([^A-Za-z0-9_]|$)|continue-on-erro[r]:[[:space:]]*[^f"'[:space:]]|allow_failur[e]:[[:space:]]*([^f[:space:]]|$)
@@ -809,6 +809,12 @@ frontend-test-skip 0 vi.skip();
 frontend-test-skip 0 this.skip();
 frontend-test-skip 0 it('x', () => {
 frontend-test-skip 0 const gain = benefit(1);
+frontend-test-skip 0 self::fit($panel);
+frontend-test-skip 0 Fit::fit(1);
+frontend-test-skip 0 $this->fit(1);
+frontend-test-skip 1 const f = () =>fit('x', () => {
+frontend-test-skip 1 const c = a ? b : fit('x', () => {
+frontend-test-skip 1 export const t = {fit:fit('x', () => {
 comments 1 // note
 comments 1 $a = 1; // note
 comments 1 # note
@@ -1291,6 +1297,12 @@ if [ "$MODE" = "--head" ]; then
         rm -f "$REASON"
         printf '%s %s %s\n' "$name" "$direction" "$value"
     done <<< "$RATCHETS"
+    # --head counts the commit HEAD, as the pipeline does, not the working tree: a file that is new or edited and not committed is
+    # invisible to every row (git grep reads the revision). Say so, so that a counter that looks 0 is not read as clean.
+    if [ -z "${CHECK_HEAD:-}" ]; then
+        PENDING=$(git status --porcelain 2> /dev/null | wc -l | tr -d ' ')
+        [ "$PENDING" -eq 0 ] || echo "Ratchets: --head counts the commit HEAD, not the working tree: $PENDING path(s) with uncommitted or untracked changes are not counted (commit them, or the rows look lower than they are)." >&2
+    fi
     exit "$STATUS"
 fi
 
@@ -1302,7 +1314,7 @@ if [ "$MODE" = "--uncovered" ]; then
 fi
 
 if [ -n "$MODE" ] && { [ "$MODE" != "--guard" ] || [ -z "${2:-}" ]; }; then
-    echo "Usage: bash $SCRIPT_NAME [--head | --uncovered | --self-test [<extra cases file>] | --json '<operation> <path>' | --guard <path of the ratchet script in the repository>]" >&2
+    echo "Usage: bash $SCRIPT_NAME [--head (counts the commit HEAD, not uncommitted files) |--uncovered | --self-test [<extra cases file>] | --json '<operation> <path>' | --guard <path of the ratchet script in the repository>]" >&2
     exit 64
 fi
 

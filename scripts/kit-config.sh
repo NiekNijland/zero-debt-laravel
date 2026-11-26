@@ -73,3 +73,33 @@ kit_deepen() {
     fi
     return 0
 }
+
+# kit_check_git: a git worktree (or a submodule) has a .git FILE that holds "gitdir: <path>". A worktree made on the host and opened
+# in a container (or the reverse) names a path that does not exist there, and every git command then fails with a message that
+# does not say why. Returns 1 with the reason in KIT_GIT_ERROR when the .git file nearest to the current folder points at a folder
+# that is missing. No .git, a .git folder, or GIT_DIR set: nothing to check.
+kit_check_git() {
+    local dir="$PWD" pointer target
+    [ -z "${GIT_DIR:-}" ] || return 0
+    while [ -n "$dir" ] && [ "$dir" != "/" ]; do
+        if [ -f "$dir/.git" ]; then
+            pointer=$(awk 'NR == 1 && /^gitdir: / { sub(/^gitdir: /, ""); print }' "$dir/.git")
+            [ -n "$pointer" ] || return 0
+            case "$pointer" in
+                /*) target="$pointer" ;;
+                *) target="$dir/$pointer" ;;
+            esac
+            [ -d "$target" ] && return 0
+            KIT_GIT_ERROR="$dir/.git is a file that points to $target, which does not exist here. This checkout is a git worktree made on the other side of a container boundary: run the kit scripts on the host (where git can read it), and the project's own tools (php, composer, npm) in the container"
+            return 1
+        fi
+        [ ! -e "$dir/.git" ] || return 0
+        dir=$(dirname "$dir")
+    done
+    return 0
+}
+
+kit_check_git || {
+    echo "Kit: $KIT_GIT_ERROR" >&2
+    exit 64
+}
