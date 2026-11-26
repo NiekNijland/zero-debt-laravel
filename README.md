@@ -64,7 +64,7 @@ Requirements: PHP 8.4 or later, Composer, Docker (or any PostgreSQL 17 server wi
 
 **The application.** `app/Modules/Notes` (actions, DTOs, enums, a service) and `app/Modules/Localization` (locale and pages), with a flat framework layer: single-action controllers under `app/Http/Controllers/Api/Note`, form requests, a policy, middleware and two providers. The JSON API sits under `/api/v1` behind Sanctum tokens, with permissions from spatie/laravel-permission, DTOs from spatie/laravel-data, `can:` and `throttle:<limiter>` on every route, and localized pages at `/{locale}/{slug}`.
 
-**The tools at their strictest.** PHPStan at level 10 with bleeding edge, Larastan, strict rules, disallowed calls, a dead-code detector and 100% type coverage; Rector with 19 sets and no skip; Pint with the 21 strictness rules; `roave/security-advisories`; Pest 5 with a hermetic base set-up, line coverage held at a committed floor and a mutation floor.
+**The tools at their strictest.** PHPStan at level 10 with bleeding edge, Larastan, strict rules, disallowed calls, a dead-code detector and 100% type coverage; Rector with 18 sets and no skip; Pint with the 21 strictness rules; `roave/security-advisories`; Pest 5 with a hermetic base set-up, line coverage held at a committed floor and a mutation floor.
 
 **The guards.** Architecture tests in `tests/Unit/*ArchitectureTest.php` with their detectors in `tests/Support/Architecture`, each with failing examples, passing examples and one case over the real tree:
 
@@ -78,7 +78,7 @@ Requirements: PHP 8.4 or later, Composer, Docker (or any PostgreSQL 17 server wi
 | The pipeline | `CiContractArchitectureTest`: a workflow that narrows a check; `CodeOwnersArchitectureTest`: a guard file with no owner |
 | The guides | `DocumentedPathArchitectureTest`: a path in a guide that is gone; `GuideRulesArchitectureTest`: a guide that lost the words of a rule; `OnePatternRubricArchitectureTest`: a row of the one-pattern table missing from the rubric |
 
-**The ratchets, all at zero.** `scripts/ci-ratchets.sh` counts the rows of the kit's start set plus its caps: `analyser-baseline`, `analyser-ignore`, `analyser-level`, `refactor-skip`, `audit-ignore`, `audit-exceptions`, `test-skip`, `test-doubles`, `event-fake-all`, `lint-disable`, `lint-config-off`, `lint-config-ignores`, `lint-baseline`, `type-baseline`, `ts-suppressions`, `frontend-test-skip`, `comments`, `todo`, `ci-skipped-steps`, `strict-types-missing`, `loose-comparisons`, `mutable-dates`, `byte-string-functions`, `queue-bus-fake-all`, `guide-future-tense`, `unused-ignore` and one `cap-<key>` row per key of `scripts/debt-caps.json`. Their counterparts that may only go up are held at their goal: `refactor-sets` at 19, `formatter-rules` at 21, `advisory-block` at 1, `analyser-switches` at 7, `coverage-floor` and `mutation-floor` at their committed numbers. The dashboard (`scripts/debt-dashboard.sh --final`) adds files over 400 lines, open classes, classes with no test of their own, docs past their age limit and the package audit.
+**The ratchets, all at zero.** `scripts/ci-ratchets.sh` counts the rows of the kit's start set plus its caps: `analyser-baseline`, `analyser-ignore`, `analyser-level`, `refactor-skip`, `audit-ignore`, `audit-exceptions`, `test-skip`, `test-doubles`, `event-fake-all`, `lint-disable`, `lint-config-off`, `lint-config-ignores`, `lint-baseline`, `type-baseline`, `ts-suppressions`, `frontend-test-skip`, `comments`, `todo`, `ci-skipped-steps`, `strict-types-missing`, `loose-comparisons`, `mutable-dates`, `byte-string-functions`, `queue-bus-fake-all`, `guide-future-tense`, `unused-ignore` and one `cap-<key>` row per key of `scripts/debt-caps.json`. Their counterparts that may only go up are held at their goal: `refactor-sets` at 18, `formatter-rules` at 21, `advisory-block` at 1, `analyser-switches` at 7, `coverage-floor` and `mutation-floor` at their committed numbers. The dashboard (`scripts/debt-dashboard.sh --final`) adds files over 400 lines, open classes, classes with no test of their own, docs past their age limit and the package audit.
 
 **The documents.** `AGENTS.md` (glossary, product areas, which source wins, house rules, the one-pattern table), `app/AGENTS.md`, `tests/AGENTS.md`, `docs/decisions/0001-one-backend-pattern.md`, `docs/review-rubric.md`, `docs/ci.md`, `docs/kit-sync.md` and `docs/guards/ci-contract.md`.
 
@@ -105,7 +105,7 @@ One kit is compared, and only on what its public files say. Source: the reposito
 | | nunomaduro/laravel-starter-kit | this starter |
 | --- | --- | --- |
 | Static analysis | Larastan, `level: max`, bleeding edge (its README says level 9) | Larastan at level 10 with bleeding edge, strict rules, disallowed calls and a dead-code detector |
-| Refactoring | Rector with six prepared sets (dead code, code quality, coding style, type declarations, privatization, early return) and ten Laravel sets, with three skips | the same six prepared sets and ten Laravel sets; no skip is allowed |
+| Refactoring | Rector with six prepared sets (dead code, code quality, coding style, type declarations, privatization, early return) and ten Laravel sets, with three skips | the same prepared sets without `earlyReturn` (Rector 2.9 no longer applies it) and the ten Laravel sets; no skip is allowed |
 | Formatter | Pint with a `rules` list (`declare_strict_types`, `strict_comparison`, `final_class`, `date_time_immutable` among them) | Pint with the 21 strictness rules of the kit, counted by a ratchet row |
 | Types and coverage | Pest type coverage at 100, line coverage required at exactly 100.0 | Pest type coverage at 100, line coverage held at a committed floor that only goes up, a mutation floor |
 | Runtime defaults | `nunomaduro/essentials`: strict models, auto eager loading, immutable dates, forced HTTPS, a safe console, stray requests prevented, fake sleep | the same switches as calls in one provider, each asserted by a config test |
@@ -145,8 +145,8 @@ Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17:
 
 Not proven:
 
-- the canary fails while the kit's `main` has no `tools/doctor.sh`, and the bump pull request of the kit sync has never been opened: both need a kit commit after the pinned one (`KIT-FINDINGS.md`, P3-2 and P4-4);
+- the bump pull request of the kit sync has never been opened: it needs a kit commit after the pinned one, and the pin is the kit's head (the doctor's upgrade was applied by hand to reach 119d889, and the sync's task-line step was run on a copy only);
 - the branch protection of `docs/ci.md` is not set on the host, so a merge is not yet blocked by the required checks or the code-owner review;
-- the mutation floor was measured with four processes; a different count flaked on the first measurement (`KIT-FINDINGS.md`).
+- the mutation floor was measured with four processes (`MUTATION_PROCESSES` in `scripts/mutation.sh`); a different count flaked on the first measurement, and the floor includes the eight uncovered mutants of the `#[Fillable]` and `#[Hidden]` lines.
 
 `KIT-FINDINGS.md` lists what building this starter found wrong or missing in the kit.
