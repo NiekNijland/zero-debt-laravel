@@ -4,14 +4,14 @@ declare(strict_types=1);
 
 use Tests\Support\Architecture\AnalyserPathsGuard;
 use Tests\Support\Architecture\BlameRevisionsGuard;
-use Tests\Support\Architecture\CiSafetyGuard;
 use Tests\Support\Architecture\CodeOwnersGuard;
 use Tests\Support\Architecture\ComposerScriptsGuard;
 use Tests\Support\Architecture\DocumentedPathGuard;
-use Tests\Support\Architecture\GithubWorkflowGuard;
 use Tests\Support\Architecture\GuardGroupGuard;
 use Tests\Support\Architecture\GuideRulesGuard;
 use Tests\Support\Architecture\OnePatternRubricGuard;
+use Tests\Support\Architecture\TaskFlagsGuard;
+use Tests\Support\Architecture\WorkflowDriversGuard;
 use Tests\Support\Narrow;
 use Tests\Support\SourceSandbox;
 
@@ -73,9 +73,9 @@ it('accepts words spread over two guides, other spacing and a table with its hea
 it('keeps the guide words of every rule of the CI guards', function (): void {
     $root = dirname(__DIR__, 2);
     $rules = [
-        ...GithubWorkflowGuard::RULES,
-        'no-manual-trigger',
-        ...CiSafetyGuard::RULES,
+        'github-workflow',
+        ...WorkflowDriversGuard::RULES,
+        ...TaskFlagsGuard::RULES,
         ...CodeOwnersGuard::RULES,
         ...DocumentedPathGuard::RULES,
         ...GuideRulesGuard::RULES,

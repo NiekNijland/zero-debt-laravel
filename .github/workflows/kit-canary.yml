@@ -16,6 +16,8 @@ jobs:
   canary:
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    env:
+      DB_HOST: 127.0.0.1
     services:
       database:
         image: postgres:17

@@ -6,151 +6,238 @@ namespace Tests\Support\Architecture;
 
 final readonly class GithubJobRules
 {
+    private const array CONTAINER_OPTIONS = ['--user', '--cpus', '--memory', '--shm-size'];
+
     /**
-     * @param string $databaseImage DATABASE_IMAGE of the shared config, compared as written (the one image that needs no digest)
+     * @param string $databaseImage DATABASE_IMAGE of the kit config, compared as written; empty where the project has no database
+     * @param list<string> $writingLines run lines an owner exception allows to write
+     * @param int $maxTimeoutMinutes the longest `timeout-minutes` a job may ask for
+     * @param list<string> $auxiliaryImages service images besides DATABASE_IMAGE that a job may start (Redis for the cache and the queue), compared as written
+     * @param string $hostVariable the job variable that tells the application where its database is (`DB_HOST`; `MONGODB_URI` for MongoDB)
      */
     public function __construct(
         private string $databaseImage,
-        private CiSafetyGuard $commands,
+        private array $writingLines,
+        private int $maxTimeoutMinutes,
+        private array $auxiliaryImages = [],
+        private string $hostVariable = 'DB_HOST',
     ) {
     }
 
     /**
+     * @param array<mixed> $workflow
      * @return list<string>
      */
-    public static function lines(string $run): array
+    public function inWorkflow(array $workflow): array
     {
-        return array_values(array_filter(array_map(trim(...), explode("\n", $run)), static fn (string $line): bool => $line !== ''));
+        $violations = [];
+        $jobs = GithubWorkflowReader::jobs($workflow);
+
+        foreach ($jobs as $id => $job) {
+            $violations = [...$violations, ...$this->inJob($id, $job, is_array($workflow['env'] ?? null) ? $workflow['env'] : [])];
+
+            $name = $job['name'] ?? null;
+
+            if (is_string($name) && $name !== $id && (isset($jobs[$name]) || count(array_filter($jobs, static fn (array $other): bool => ($other['name'] ?? null) === $name)) > 1)) {
+                $violations[] = 'job `' . $id . '` is named `' . $name . '`, which is the name of another job: two jobs reporting one check name make the required check ambiguous';
+            }
+        }
+
+        return $violations;
     }
 
     /**
-     * @param array<string, mixed> $job
+     * @param array<mixed> $env
+     */
+    private static function fetchesOnlyLocalUrls(string $line, array $env): bool
+    {
+        preg_match_all('~"[^"]*"|\'[^\']*\'|\S+~', $line, $matches);
+
+        $urls = [];
+
+        foreach ($matches[0] as $word) {
+            $word = mb_trim($word, '"\'');
+
+            if (preg_match('~^\$\{?([A-Za-z_]\w*)\}?(.*)$~', $word, $variable) === 1) {
+                $value = $env[$variable[1]] ?? null;
+                $word = is_string($value) ? $value . $variable[2] : '';
+            }
+
+            if (preg_match('~^https?://~', $word) === 1) {
+                $urls[] = $word;
+            }
+        }
+
+        return $urls !== [] && ! array_any($urls, static fn (string $url): bool => preg_match('~^https?://(127\.0\.0\.1|localhost|0\.0\.0\.0|\[::1\])([:/]|$)~', $url) !== 1);
+    }
+
+    /**
+     * @param list<string> $words the conditions that count, lower case
+     */
+    private function switchedOff(mixed $condition, array $words): bool
+    {
+        if ($condition === false) {
+            return in_array('false', $words, true);
+        }
+
+        if (! is_string($condition)) {
+            return false;
+        }
+
+        $text = mb_strtolower(mb_trim($condition));
+        $text = preg_replace('/^\$\{\{\s*(.*?)\s*\}\}$/', '$1', $text) ?? $text;
+
+        return in_array($text, $words, true);
+    }
+
+    /**
+     * @param array<mixed> $job
+     * @param array<mixed> $workflowEnv
      * @return list<string>
      */
-    public function violations(string $id, array $job): array
+    private function downloadRules(string $where, array $job, array $workflowEnv): array
+    {
+        $lines = GithubWorkflowReader::lines($job);
+        $env = [...$workflowEnv, ...(is_array($job['env'] ?? null) ? $job['env'] : [])];
+        $calls = array_filter($lines, static fn (string $line): bool => preg_match('/\b(curl|wget)\b/', $line) === 1);
+        $downloads = array_filter($calls, static fn (string $line): bool => ! self::fetchesOnlyLocalUrls($line, $env));
+        $violations = [];
+
+        if ($downloads !== [] && ! array_any($lines, static fn (string $line): bool => preg_match('/\bsha256sum\s+(-c|--check)\b|\bshasum\s+(-a\s*256\s+)?-c\b/', $line) === 1)) {
+            $violations[] = $where . ' downloads a file with curl or wget and checks no checksum (`sha256sum -c`): a downloaded binary is pinned by its version and its checksum';
+        }
+
+        foreach ($calls as $line) {
+            if (preg_match('/\|\s*(sudo\s+)?(ba)?sh\b/', $line) === 1) {
+                $violations[] = $where . ' pipes a download into a shell: `' . $line . '`';
+            }
+        }
+
+        return $violations;
+    }
+
+    private function pinned(string $uses): bool
+    {
+        return preg_match('/@([0-9a-f]{40}|sha256:[0-9a-f]{64})$/', $uses) === 1;
+    }
+
+    /**
+     * @param array<mixed> $step
+     * @return list<string>
+     */
+    private function checkoutRules(string $where, array $step): array
+    {
+        $violations = [];
+
+        if (GithubWorkflowReader::at($step, 'with', 'fetch-depth') !== 0) {
+            $violations[] = $where . ' checks out with a shallow clone: set `fetch-depth: 0` (a history-reading task stops working after a few dozen commits)';
+        }
+
+        if (GithubWorkflowReader::at($step, 'with', 'persist-credentials') === false) {
+            $violations[] = $where . ' checks out with `persist-credentials: false`: scripts/checks.sh fetches the base with those credentials';
+        }
+
+        return $violations;
+    }
+
+    /**
+     * @param array<mixed> $job
+     * @param array<mixed> $workflowEnv
+     * @return list<string>
+     */
+    private function inJob(string $id, array $job, array $workflowEnv): array
     {
         $where = 'job `' . $id . '`';
+        $violations = [];
+        $timeout = $job['timeout-minutes'] ?? null;
 
-        return [
-            ...$this->limits($where, $job),
-            ...$this->images($where, $job),
-            ...$this->services($where, $job),
-            ...$this->steps($where, $job),
-        ];
+        if (! is_int($timeout)) {
+            $violations[] = $where . " has no integer timeout-minutes (GitHub's default is 360 minutes)";
+        } elseif ($timeout < 1 || $timeout > $this->maxTimeoutMinutes) {
+            $violations[] = $where . ' has timeout-minutes ' . $timeout . ', above the ' . $this->maxTimeoutMinutes . ' the guard allows: a hung job holds a runner for that long';
+        }
+
+        if (isset($job['runs-on']) && preg_match('/latest/', implode(' ', GithubWorkflowReader::strings($job['runs-on']))) === 1) {
+            $violations[] = $where . ' runs on a moving label (`*-latest`)';
+        }
+
+        if (is_string($job['uses'] ?? null) && ! $this->pinned($job['uses'])) {
+            $violations[] = $where . ' calls the workflow `' . $job['uses'] . '`, which is not pinned to a full commit sha';
+        }
+
+        return [...$violations, ...$this->imageRules($where, $job), ...$this->stepRules($where, $job), ...$this->downloadRules($where, $job, $workflowEnv)];
     }
 
     /**
-     * @param array<string, mixed> $step
+     * @param array<mixed> $job
      * @return list<string>
      */
-    private function checkout(string $where, array $step): array
+    private function imageRules(string $where, array $job): array
     {
         $violations = [];
-
-        if (YamlNode::at($step, 'with', 'fetch-depth') !== 0) {
-            $violations[] = $this->fail('full-history', $where . ' checks out with a shallow clone: set `fetch-depth: 0` (a history-reading task stops working after a few dozen commits)');
-        }
-
-        if (YamlNode::at($step, 'with', 'persist-credentials') === false) {
-            $violations[] = $this->fail('full-history', $where . ' checks out with `persist-credentials: false`: the checks script fetches the base with those credentials');
-        }
-
-        return $violations;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function runViolations(string $where, string $run): array
-    {
-        $violations = [];
-
-        if (preg_match('/\b(curl|wget)\b[^\n]*(\.tgz|\.tar\.gz|\.zip|\.phar|\.deb|\.sh\b|\|\s*(ba)?sh\b)/', $run) === 1 && preg_match('/\b(sha256sum|shasum)\b[^\n]*-c\b/', $run) !== 1) {
-            $violations[] = $this->fail('pinning', $where . ' downloads a tool and does not check it against a checksum (`sha256sum -c`)');
-        }
-
-        if (preg_match('/\bcomposer\s+(update|require)\b|\bnpm\s+(install|i|update)\b|\byarn\s+(add|upgrade)\b|\bcomposer\s+install\b[^\n]*--no-lock/', $run) === 1) {
-            $violations[] = $this->fail('lock-installs', $where . ' installs or updates a dependency outside the lock file: install with `composer install`');
-        }
-
-        return $violations;
-    }
-
-    /**
-     * @param array<string, mixed> $step
-     */
-    private function label(array $step): string
-    {
-        return YamlNode::text($step['name'] ?? $step['uses'] ?? $step['run'] ?? '');
-    }
-
-    private function fail(string $rule, string $message): string
-    {
-        return '[' . $rule . '] ' . $message;
-    }
-
-    /**
-     * @param array<string, mixed> $job
-     * @return list<string>
-     */
-    private function limits(string $where, array $job): array
-    {
-        $violations = [];
-
-        if (! is_int($job['timeout-minutes'] ?? null)) {
-            $violations[] = $this->fail('time-limits', $where . ' has no integer timeout-minutes (the default of the host is 360 minutes)');
-        }
-
-        $runner = $job['runs-on'] ?? '';
-
-        if (str_contains(implode(' ', is_array($runner) ? YamlNode::texts($runner) : [YamlNode::text($runner)]), 'latest')) {
-            $violations[] = $this->fail('pinning', $where . ' runs on a moving label (`*-latest`)');
-        }
-
-        if (($job['continue-on-error'] ?? false) === true || ($job['if'] ?? null) === false || mb_trim(YamlNode::text($job['if'] ?? '')) === 'false') {
-            $violations[] = $this->fail('nothing-fails', $where . ' may fail or is switched off (`continue-on-error` or `if: false`): nothing is allowed to fail');
-        }
-
-        return $violations;
-    }
-
-    /**
-     * @param array<string, mixed> $job
-     * @return list<string>
-     */
-    private function images(string $where, array $job): array
-    {
         $container = $job['container'] ?? null;
-        $image = is_array($container) ? YamlNode::text(YamlNode::at($container, 'image')) : YamlNode::text($container);
+        $image = is_array($container) ? $container['image'] ?? null : $container;
 
-        return $image !== '' && ! str_contains($image, '@sha256:')
-            ? [$this->fail('pinning', $where . ' runs in a container that is not pinned by digest (`@sha256:`)')]
-            : [];
+        if (is_string($image) && ! str_contains($image, '@sha256:')) {
+            $violations[] = $where . ' runs in a container that is not pinned by digest (`@sha256:`)';
+        }
+
+        $options = is_array($container) ? mb_trim(GithubWorkflowReader::text($container['options'] ?? '')) : '';
+
+        $pieces = $options === '' ? [] : preg_split('/\s+(?=-)/', $options);
+
+        foreach (is_array($pieces) ? $pieces : [] as $option) {
+            if (! array_any(self::CONTAINER_OPTIONS, static fn (string $allowed): bool => str_starts_with($option, $allowed))) {
+                $violations[] = $where . ' passes `' . $option . '` to its container: only ' . implode(', ', self::CONTAINER_OPTIONS) . ' are accepted (a privileged or host-networked container weakens the isolation of the checks)';
+            }
+        }
+
+        foreach (is_array($job['services'] ?? null) ? $job['services'] : [] as $name => $service) {
+            $violations = [...$violations, ...$this->serviceRules($where . ', service `' . $name . '`', $job, (string) $name, is_array($service) ? $service : [])];
+        }
+
+        return $violations;
     }
 
     /**
-     * @param array<string, mixed> $job
+     * @param array<mixed> $job
+     * @param array<mixed> $service
      * @return list<string>
      */
-    private function services(string $where, array $job): array
+    private function serviceRules(string $label, array $job, string $name, array $service): array
     {
         $violations = [];
-        $inContainer = is_array($job['container'] ?? null) || is_string($job['container'] ?? null);
+        $image = GithubWorkflowReader::text($service['image'] ?? '');
+        $isDatabase = $image === $this->databaseImage;
+        $known = $isDatabase || in_array($image, $this->auxiliaryImages, true);
+        $engine = DatabaseEngine::of($known ? $image : $this->databaseImage);
+        $env = is_array($service['env'] ?? null) ? $service['env'] : [];
+        $options = GithubWorkflowReader::text($service['options'] ?? '');
+        $onRunner = ! GithubWorkflowReader::truthy($job['container'] ?? null);
 
-        foreach (YamlNode::map($job['services'] ?? null) as $name => $node) {
-            $service = YamlNode::map($node);
-            $label = $where . ', service `' . $name . '`';
+        if (! $known) {
+            $violations[] = $label . ' image is not DATABASE_IMAGE of kit-config.sh (`' . $this->databaseImage . '`)' . ($this->auxiliaryImages === [] ? '' : ' or one of the auxiliary service images (`' . implode('`, `', $this->auxiliaryImages) . '`)') . ': the tests run on the production engine and major version';
+        }
 
-            if (YamlNode::text($service['image'] ?? '') !== $this->databaseImage) {
-                $violations[] = $this->fail('database-and-drivers', $label . ' image is not the database image of the shared config (`' . $this->databaseImage . '`): the tests run on the production engine and major version');
-            }
+        if (($engine === '' || DatabaseEngine::needsPassword($engine)) && ($engine === '' ? $env === [] : ! array_any(DatabaseEngine::passwordKeys($engine), static fn (string $key): bool => isset($env[$key])))) {
+            $violations[] = $label . ' has no password variable of its engine (' . ($engine === '' ? 'any' : $engine . ': ' . implode(', ', DatabaseEngine::passwordKeys($engine))) . '): the official image exits at start, and the job fails at "Initialize containers"';
+        }
 
-            if (! isset($service['env']) || ! str_contains(YamlNode::text($service['options'] ?? ''), '--health-cmd')) {
-                $violations[] = $this->fail('database-and-drivers', $label . ' has no env or no health check: the official image exits without a password, and the job must wait for the database');
-            }
+        if (! str_contains($options, '--health-cmd') || ($engine !== '' && ! array_any(DatabaseEngine::healthTools($engine), static fn (string $tool): bool => str_contains($options, $tool)))) {
+            $violations[] = $label . ' has no health check of its engine (' . ($engine === '' ? '--health-cmd' : implode(' or ', DatabaseEngine::healthTools($engine))) . '): the job must wait for the database, and a check from another engine never passes';
+        }
 
-            if (! $inContainer && ! isset($service['ports'])) {
-                $violations[] = $this->fail('database-and-drivers', $label . ' publishes no port and the job runs on the runner: it cannot reach the service');
+        if ($onRunner && ! GithubWorkflowReader::truthy($service['ports'] ?? null)) {
+            $violations[] = $label . ' publishes no port and the job runs on the runner: it cannot reach the service';
+        }
+
+        if ($isDatabase) {
+            $value = GithubWorkflowReader::text(GithubWorkflowReader::at($job, 'env', $this->hostVariable));
+            $host = $onRunner ? '127.0.0.1' : $name;
+            $fits = preg_match('#(^|[/@])' . preg_quote($host, '#') . '([:/]|$)#', $value) === 1;
+
+            if (! $fits) {
+                $violations[] = $label . ' is not the ' . $this->hostVariable . ' of its job: ' . ($onRunner ? 'a runner job reaches a service at 127.0.0.1 on its published port, never by the service name' : 'a container job reaches a service by its name');
             }
         }
 
@@ -158,37 +245,33 @@ final readonly class GithubJobRules
     }
 
     /**
-     * @param array<string, mixed> $job
+     * @param array<mixed> $job
      * @return list<string>
      */
-    private function steps(string $where, array $job): array
+    private function stepRules(string $where, array $job): array
     {
         $violations = [];
 
-        foreach (YamlNode::items($job['steps'] ?? null) as $node) {
-            $step = YamlNode::map($node);
-            $uses = YamlNode::text($step['uses'] ?? '');
-            $run = YamlNode::text($step['run'] ?? '');
+        if (GithubWorkflowReader::truthy($job['continue-on-error'] ?? null) || $this->switchedOff($job['if'] ?? null, ['false'])) {
+            $violations[] = $where . ' may fail or is switched off (`continue-on-error` or `if: false`): nothing is allowed to fail';
+        }
 
-            if (! is_int($step['timeout-minutes'] ?? null)) {
-                $violations[] = $this->fail('time-limits', $where . ', step `' . $this->label($step) . '` has no integer timeout-minutes');
-            }
+        foreach (GithubWorkflowReader::steps($job) as $step) {
+            $uses = is_string($step['uses'] ?? null) ? $step['uses'] : '';
 
-            if ($uses !== '' && ! str_starts_with($uses, '.') && preg_match('/@([0-9a-f]{40}|sha256:[0-9a-f]{64})$/', $uses) !== 1) {
-                $violations[] = $this->fail('pinning', $where . ' uses `' . $uses . '`, which is not pinned to a full commit sha');
+            if ($uses !== '' && ! str_starts_with($uses, './') && ! $this->pinned($uses)) {
+                $violations[] = $where . ' uses `' . $uses . '`, which is not pinned to a full commit sha';
             }
 
             if (str_starts_with($uses, 'actions/checkout@')) {
-                $violations = [...$violations, ...$this->checkout($where, $step)];
+                $violations = [...$violations, ...$this->checkoutRules($where, $step)];
             }
 
-            if (($step['continue-on-error'] ?? false) === true || ($step['if'] ?? null) === false || in_array(mb_trim(YamlNode::text($step['if'] ?? '')), ['false', 'always()'], true)) {
-                $violations[] = $this->fail('nothing-fails', $where . ', a step may fail or is forced on (`continue-on-error`, `if: false`, `if: always()`)');
+            if (GithubWorkflowReader::truthy($step['continue-on-error'] ?? null) || $this->switchedOff($step['if'] ?? null, ['false', 'always()'])) {
+                $violations[] = $where . ', a step may fail or is forced on (`continue-on-error`, `if: false`, `if: always()`)';
             }
-
-            $violations = [...$violations, ...$this->runViolations($where, $run), ...$this->commands->inCommands(self::lines($run))];
         }
 
-        return $violations;
+        return [...$violations, ...new CiSafetyGuard('', $this->writingLines)->inCommands(GithubWorkflowReader::lines($job))];
     }
 }

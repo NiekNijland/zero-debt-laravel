@@ -21,17 +21,6 @@ final class YamlNode
         }
     }
 
-    public static function failure(string $yaml): ?string
-    {
-        try {
-            Yaml::parse($yaml);
-
-            return null;
-        } catch (ParseException $parseException) {
-            return $parseException->getMessage();
-        }
-    }
-
     /**
      * @return array<string, mixed>
      */

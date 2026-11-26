@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use Tests\Support\Architecture\CodeOwnersGuard;
-use Tests\Support\CiExamples;
+use Tests\Support\Ci\CiExamples;
 use Tests\Support\Narrow;
 use Tests\Support\RecursiveFiles;
 

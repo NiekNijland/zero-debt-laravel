@@ -7,145 +7,62 @@ use Tests\Support\Architecture\AnalyserPathsGuard;
 use Tests\Support\Architecture\BlameRevisionsGuard;
 use Tests\Support\Architecture\CiSafetyGuard;
 use Tests\Support\Architecture\ComposerScriptsGuard;
-use Tests\Support\Architecture\GithubWorkflowGuard;
 use Tests\Support\Architecture\GuardGroupGuard;
+use Tests\Support\Architecture\TaskFlagsGuard;
 use Tests\Support\Architecture\YamlNode;
-use Tests\Support\CiExamples;
+use Tests\Support\Ci\CiExamples;
 use Tests\Support\Narrow;
 use Tests\Support\SourceSandbox;
 
 uses()->group('arch');
 
-$workflowGuard = static fn (): GithubWorkflowGuard => new GithubWorkflowGuard('', ['main', 'develop'], 'composer test:unit', 'bash scripts/checks.sh', 'bash scripts/mutation.sh', 'smoke', ['CACHE_STORE' => 'database', 'QUEUE_CONNECTION' => 'database', 'DB_CONNECTION' => 'pgsql'], 'postgres:17', ['gate', 'static', 'guards', 'repo']);
-$inJob = static fn (string $job, string $from, string $to): string => CiExamples::changeAfter(CiExamples::workflow(), "\n  " . $job . ":\n", $from, $to);
-$change = static fn (string $from, string $to): string => CiExamples::change(CiExamples::workflow(), $from, $to);
-$again = "  again:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 5\n    steps:\n      - name: Again\n        timeout-minutes: 2\n        run: composer test:unit\n";
-$sha = 'actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v4.2.2';
-
-$workflowCases = [
-    'no push trigger' => [fn (): string => $change("  push:\n    branches: ['main', 'develop']\n", ''), '[five-runs] the workflow has no `push` trigger'],
-    'a path filter on the pull request' => [fn (): string => $change("  pull_request:\n", "  pull_request:\n    paths: ['app/**']\n"), '[five-runs] pull_request has `paths`'],
-    'a branch filter, which a stacked pull request does not match' => [fn (): string => $change("  pull_request:\n", "  pull_request:\n    branches: [main]\n"), '[five-runs] pull_request has `branches`'],
-    'no re-run after a retarget' => [fn (): string => $change(', edited]', ']'), '[five-runs] pull_request.types lacks `edited`'],
-    'a deploying branch that is not listed' => [fn (): string => $change("branches: ['main', 'develop']", "branches: ['main']"), '[five-runs] push.branches does not list the deploying branch develop'],
-    'a path filter on the push' => [fn (): string => $change("  push:\n", "  push:\n    paths-ignore: ['docs/**']\n"), '[five-runs] push has a path filter'],
-    'a schedule without a cron' => [fn (): string => $change("    - cron: '17 3 * * *'\n", "    - name: nightly\n"), '[five-runs] the schedule trigger has no cron'],
-    'a manual trigger' => [fn (): string => $change("on:\n", "on:\n  workflow_dispatch:\n"), '[no-manual-trigger] the trigger `workflow_dispatch`'],
-    'a trigger that runs with secrets' => [fn (): string => $change("on:\n", "on:\n  pull_request_target:\n"), '[read-only] pull_request_target is used'],
-    'no concurrency group' => [fn (): string => $change("concurrency:\n  group: kit-\${{ github.event_name }}-\${{ github.event.pull_request.number || github.sha }}\n  cancel-in-progress: \${{ github.event_name {is} 'pull_request' }}\n\n", ''), '[read-only] the workflow has no concurrency group'],
-    'a group that cancels a push to a deploying branch' => [fn (): string => $change("cancel-in-progress: \${{ github.event_name {is} 'pull_request' }}", 'cancel-in-progress: true'), '[read-only] concurrency cancels runs of every event'],
-    'no top-level permissions' => [fn (): string => $change("permissions:\n  contents: read\n\njobs:", 'jobs:'), '[read-only] the workflow has no top-level `permissions`'],
-    'a token that writes' => [fn (): string => $change("permissions:\n  contents: read\n\njobs:", "permissions:\n  contents: write\n\njobs:"), '[read-only] a permission is `write`'],
-    'a condition on the checks job' => [fn (): string => $inJob('checks', "if: github.event_name {is} 'pull_request'", "if: github.event_name {is} 'pull_request' && github.actor {isnot} 'renovate[bot]'"), '[checks-parts] job `checks` has another condition'],
-    'a part without a matrix entry' => [fn (): string => $inJob('checks', 'part: [gate, static, guards, repo]', 'part: [gate, static, guards]'), '[checks-parts] the matrix of job `checks` is not exactly the parts'],
-    'a checks step with a condition of its own' => [fn (): string => $change('run: bash scripts/checks.sh --part ${{ matrix.part }}', "if: matrix.part {isnot} 'gate'\n        run: bash scripts/checks.sh --part \${{ matrix.part }}"), '[checks-parts] the checks step of job `checks` has a condition of its own'],
-    'no base for the ratchets' => [fn (): string => $inJob('checks', "    env:\n      CHECK_BASE: \${{ github.base_ref }}\n", ''), '[checks-parts] job `checks` does not set CHECK_BASE'],
-    'a head that the job does not check out' => [fn (): string => $inJob('checks', 'CHECK_BASE: ${{ github.base_ref }}', "CHECK_BASE: \${{ github.base_ref }}\n      CHECK_HEAD: \${{ github.event.pull_request.head.sha }}"), '[checks-parts] job `checks` sets CHECK_HEAD but does not check out that revision'],
-    'no checks on a deploying branch' => [fn (): string => $change('--main --part', '--part'), '[checks-parts] no job runs exactly `bash scripts/checks.sh --main --part ${{ matrix.part }}`'],
-    'an aggregate job that passes whatever happened' => [fn (): string => $change('run: test "$RESULT" = success', 'run: echo done'), '[checks-parts] no aggregate job'],
-    'an action on a tag' => [fn (): string => $inJob('smoke', $sha, 'actions/checkout@v4'), '[pinning] job `smoke` uses `actions/checkout@v4`, which is not pinned to a full commit sha'],
-    'a runner on a moving label' => [fn (): string => $inJob('checks-result', 'runs-on: ubuntu-24.04', 'runs-on: ubuntu-latest'), '[pinning] job `checks-result` runs on a moving label'],
-    'a container without a digest' => [fn (): string => $inJob('smoke', "    env:\n      CACHE_STORE", "    container:\n      image: php:8.4\n    env:\n      CACHE_STORE"), '[pinning] job `smoke` runs in a container that is not pinned by digest'],
-    'a download without a checksum' => [fn (): string => $change("          echo \"\${GITLEAKS_SHA256}  gitleaks.tgz\" | sha256sum -c -\n", ''), '[pinning] job `checks` downloads a tool and does not check it against a checksum'],
-    'a job without a maximum time' => [fn (): string => $inJob('checks-result', "    timeout-minutes: 5\n    steps:", '    steps:'), '[time-limits] job `checks-result` has no integer timeout-minutes'],
-    'a step without a maximum time' => [fn (): string => $inJob('checks-result', "        timeout-minutes: 2\n", ''), '[time-limits] job `checks-result`, step `Every part passed` has no integer timeout-minutes'],
-    'a checks step that may fail' => [fn (): string => $inJob('checks', "        timeout-minutes: 10\n        run: bash scripts/checks.sh --part", "        timeout-minutes: 10\n        continue-on-error: true\n        run: bash scripts/checks.sh --part"), '[nothing-fails] job `checks`, a step may fail'],
-    'a command that succeeds anyway' => [fn (): string => $inJob('checks', 'run: composer install', 'run: composer install || true'), '[checks-script] a check is made to succeed anyway'],
-    'a job that is switched off' => [fn (): string => $inJob('smoke', "if: github.event_name {isnot} 'schedule'", 'if: false'), '[nothing-fails] job `smoke` may fail or is switched off'],
-    'a command that commits' => [fn (): string => $inJob('scheduled', 'run: bash scripts/mutation.sh', "run: |\n          bash scripts/mutation.sh\n          git commit -am autofix"), '[read-only] a command writes to the repository'],
-    'a service image that is not the production engine' => [fn (): string => $inJob('backend-tests', 'image: postgres:17', 'image: postgres:16'), '[database-and-drivers] job `backend-tests`, service `database` image is not the database image'],
-    'a service without a health check' => [fn (): string => $inJob('smoke', "        options: >-\n          --health-cmd \"pg_isready -U postgres\"\n          --health-interval 5s --health-timeout 5s --health-retries 12\n", ''), '[database-and-drivers] job `smoke`, service `database` has no env or no health check'],
-    'a service the runner cannot reach' => [fn (): string => $inJob('smoke', "        ports:\n          - 5432:5432\n", ''), '[database-and-drivers] job `smoke`, service `database` publishes no port'],
-    'a smoke job on another queue driver' => [fn (): string => $inJob('smoke', 'QUEUE_CONNECTION: database', 'QUEUE_CONNECTION: sync'), '[database-and-drivers] the smoke job does not set QUEUE_CONNECTION to `database`'],
-    'no smoke job' => [fn (): string => $change("\n  smoke:\n", "\n  other:\n"), '[database-and-drivers] no smoke job `smoke`'],
-    'an install that updates' => [fn (): string => $inJob('checks', 'run: composer install', 'run: composer update'), '[lock-installs] job `checks` installs or updates a dependency outside the lock file'],
-    'a scheduled run without the mutation run' => [fn (): string => $inJob('scheduled', "        run: bash scripts/mutation.sh\n", "        run: echo mutation\n"), '[scheduled-run] job `scheduled` does not run the whole-tree mutation run'],
-    'the scheduled checks on another event' => [fn (): string => $inJob('scheduled', "if: github.event_name {is} 'schedule'", "if: github.event_name {is} 'schedule' || github.event_name {is} 'push'"), '[scheduled-run] job `scheduled` runs the scheduled checks on another condition'],
-    'no scheduled checks' => [fn (): string => $change('checks.sh --scheduled', 'checks.sh --main'), '[scheduled-run] no job runs exactly `bash scripts/checks.sh --scheduled`'],
-    'no mutation run on the pull request' => [fn (): string => $change('bash scripts/mutation.sh --changed', 'bash scripts/mutation.sh'), '[mutation] job `backend-tests` does not run the mutation tests on the changed files'],
-    'a shallow clone' => [fn (): string => $inJob('smoke', 'fetch-depth: 0', 'fetch-depth: 1'), '[full-history] job `smoke` checks out with a shallow clone'],
-    'credentials that the checkout drops' => [fn (): string => $inJob('checks', 'fetch-depth: 0', "fetch-depth: 0\n          persist-credentials: false"), '[full-history] job `checks` checks out with `persist-credentials: false`'],
-    'the tests twice on one event' => [fn (): string => CiExamples::workflow() . $again, '[one-suite-per-trigger] the backend tests run 2 times on one pull_request event'],
-];
-
-dataset('GitHub workflows that narrow a check or skip a run', $workflowCases);
-
-it('detects a GitHub workflow that narrows a check or skips a run', function (Closure $workflow, string $reason) use ($workflowGuard): void {
-    expect(implode("\n", $workflowGuard()->inWorkflows(['kit-checks.yml' => Narrow::string($workflow())])))->toContain($reason);
-})->with('GitHub workflows that narrow a check or skip a run');
-
-it('has a failing example for every rule of the workflow guard', function () use ($workflowCases): void {
-    $named = array_map(static fn (array $case): string => (string) preg_replace('/^\[([a-z-]+)\].*$/', '$1', Narrow::string($case[1])), $workflowCases);
-    $rules = [...GithubWorkflowGuard::RULES, 'no-manual-trigger'];
-
-    expect(array_diff($rules, $named, ['checks-script']))->toBe([]);
-});
-
-it('accepts the example workflow, an owner exception, and a deploy workflow that waits for it', function () use ($workflowGuard): void {
-    $guard = $workflowGuard();
-    $exception = new GithubWorkflowGuard('', ['main', 'develop'], 'composer test:unit', 'bash scripts/checks.sh', 'bash scripts/mutation.sh', 'smoke', ['CACHE_STORE' => 'database', 'QUEUE_CONNECTION' => 'database', 'DB_CONNECTION' => 'pgsql'], 'postgres:17', ['gate', 'static', 'guards', 'repo'], ['workflow_dispatch'], ['git commit -am autofix']);
-    $dispatch = CiExamples::change(CiExamples::workflow(), "on:\n", "on:\n  workflow_dispatch:\n");
-    $listed = CiExamples::change(CiExamples::workflow(), "on:\n  pull_request:\n    types: [opened, synchronize, reopened, edited]\n  push:\n    branches: ['main', 'develop']\n  schedule:\n    - cron: '17 3 * * *'\n", "on: [pull_request, push, schedule]\n");
-    $commit = CiExamples::changeAfter(CiExamples::workflow(), "\n  scheduled:\n", 'run: bash scripts/mutation.sh', "run: |\n          bash scripts/mutation.sh\n          git commit -am autofix");
-
-    expect($guard->inWorkflows(['kit-checks.yml' => CiExamples::workflow()]))->toBe([])
-        ->and($guard->inWorkflows(['kit-checks.yml' => CiExamples::workflow(), 'deploy.yml' => CiExamples::deploy()]))->toBe([])
-        ->and($exception->inWorkflows(['kit-checks.yml' => $dispatch]))->toBe([])
-        ->and($exception->inWorkflows(['kit-checks.yml' => $commit]))->toBe([])
-        ->and($guard->inWorkflows(['kit-checks.yml' => CiExamples::workflow(), 'canary.yml' => CiExamples::canary()]))->toBe([])
-        ->and(implode("\n", $guard->inWorkflows(['canary.yml' => CiExamples::canary()])))->toContain('no workflow runs `bash scripts/checks.sh`')
-        ->and(implode("\n", $guard->inWorkflows(['deploy.yml' => CiExamples::deploy()])))->toContain('no workflow runs `bash scripts/checks.sh`')
-        ->and(implode("\n", $guard->inWorkflows(['list.yml' => $listed])))->toContain('[five-runs] push.branches does not list the deploying branch main')
-        ->and(implode("\n", $guard->inWorkflows(['broken.yml' => "jobs: [\n"])))->toContain('broken.yml: [five-runs] the workflow is not valid YAML');
-});
-
-it('reads the workflow directory, and fails when it holds no workflow', function (): void {
-    $root = SourceSandbox::create(['workflows/kit-checks.yml' => CiExamples::workflow(), 'empty/.gitkeep' => '']);
-
-    try {
-        $guard = new GithubWorkflowGuard($root . '/workflows', ['main', 'develop'], 'composer test:unit', 'bash scripts/checks.sh', 'bash scripts/mutation.sh', 'smoke', ['CACHE_STORE' => 'database', 'QUEUE_CONNECTION' => 'database', 'DB_CONNECTION' => 'pgsql'], 'postgres:17', ['gate', 'static', 'guards', 'repo']);
-        $empty = new GithubWorkflowGuard($root . '/empty', ['main'], 'composer test:unit', 'bash scripts/checks.sh', 'bash scripts/mutation.sh', 'smoke', [], 'postgres:17', ['gate']);
-
-        expect($guard->violations())->toBe([])
-            ->and(implode("\n", $empty->violations()))->toContain('[five-runs] no workflow in');
-    } finally {
-        SourceSandbox::remove($root);
-    }
-});
-
-$safetyGuard = static fn (string $base = 'develop'): CiSafetyGuard => new CiSafetyGuard($base, ['--guard scripts/ci-ratchets.sh', 'bash scripts/ci-ratchets.sh', 'debt-dashboard.sh $DASHBOARD_MODE --offline', 'bash scripts/ci-parallel.sh'], ['Format', 'Refactor', 'Analyser', 'Type coverage', 'Lint', 'Guard tests', 'Audit', 'Commit messages', 'Secret scan'], ['Format' => '--test', 'Refactor' => '--dry-run', 'Type coverage' => '--min=100', 'Guard tests' => '--group=arch'], '--offline --details', 'composer audit');
-
 dataset('checks scripts that weaken the checks step', [
-    'a task that is gone' => [fn (): string => CiExamples::change(CiExamples::checksScript(), "    \"Lint::vendor/bin/parallel-lint app tests\"\n", ''), '[checks-script] the checks script has no task named "Lint"'],
-    'the ratchets after the dashboard' => [fn (): string => CiExamples::change(CiExamples::checksScript(), "bash scripts/ci-ratchets.sh\nbash scripts/debt-dashboard.sh \$DASHBOARD_MODE --offline --details\n", "bash scripts/debt-dashboard.sh \$DASHBOARD_MODE --offline --details\nbash scripts/ci-ratchets.sh\n"), '[checks-script] the checks script does not run its stages in the order'],
-    'a dashboard run that is not offline and detailed' => [fn (): string => CiExamples::change(CiExamples::checksScript(), ' --offline --details', ' --offline'), '[checks-script] the dashboard line of the checks script does not run with --offline --details'],
-    'a placeholder' => [fn (): string => CiExamples::change(CiExamples::checksScript(), 'vendor/bin/pint --test', '<formatter in check mode>'), '[checks-script] the checks script still holds a <placeholder>'],
-    'a commit' => [fn (): string => CiExamples::change(CiExamples::checksScript(), 'bash scripts/ci-parallel.sh', "git commit -am autofix\nbash scripts/ci-parallel.sh"), '[read-only] a command writes to the repository'],
-    'a check that succeeds anyway' => [fn (): string => CiExamples::change(CiExamples::checksScript(), 'vendor/bin/pint --test"', 'vendor/bin/pint --test || true"'), '[checks-script] a check is made to succeed anyway'],
-    'a formatter on the changed files' => [fn (): string => CiExamples::change(CiExamples::checksScript(), 'vendor/bin/pint --test"', 'vendor/bin/pint --test $(git diff --name-only)"'), '[checks-script] a command of the checks script takes a list of changed files'],
-    'a formatter that rewrites' => [fn (): string => CiExamples::change(CiExamples::checksScript(), 'vendor/bin/pint --test"', 'vendor/bin/pint"'), '[checks-script] the task "Format" runs without `--test`'],
-    'a type coverage below the floor' => [fn (): string => CiExamples::change(CiExamples::checksScript(), '--min=100', '--min=90'), '[checks-script] the task "Type coverage" runs without `--min=100`'],
-    'an audit of a deploying branch that covers the dev tools' => [fn (): string => CiExamples::change(CiExamples::checksScript(), ' --no-dev', ''), '[audit-production-only]'],
-    'no audit' => [fn (): string => CiExamples::change(CiExamples::checksScript(), 'composer audit', 'composer outdated'), '[audit-production-only] the checks script has no audit'],
+    'a task that is gone' => [fn (): string => CiExamples::change(CiExamples::checks(), '    "Lint::npx eslint . --max-warnings 0"' . "\n", ''), 'no task named "Lint"'],
+    'the ratchets after the dashboard' => [fn (): string => CiExamples::change(CiExamples::checks(), "bash scripts/ci-ratchets.sh\nbash scripts/debt-dashboard.sh \$DASHBOARD_MODE --offline --details\n", "bash scripts/debt-dashboard.sh \$DASHBOARD_MODE --offline --details\nbash scripts/ci-ratchets.sh\n"), 'does not run its four stages in the order'],
+    'a dashboard run that is not offline and detailed' => [fn (): string => CiExamples::change(CiExamples::checks(), ' --offline --details', ' --offline'), 'does not run with --offline --details'],
+    'a placeholder' => [fn (): string => CiExamples::change(CiExamples::checks(), 'vendor/bin/pint --test', '<formatter in check mode>'), 'still holds a <placeholder>'],
+    'a commit' => [fn (): string => CiExamples::change(CiExamples::checks(), 'bash scripts/ci-parallel.sh', "git commit -am autofix\nbash scripts/ci-parallel.sh"), 'a command writes to the repository'],
+    'a check that succeeds anyway' => [fn (): string => CiExamples::change(CiExamples::checks(), 'vendor/bin/pint --test"', 'vendor/bin/pint --test || true"'), 'succeed anyway'],
+    'a linter that may print warnings' => [fn (): string => CiExamples::change(CiExamples::checks(), 'npx eslint . --max-warnings 0', 'npx eslint .'), 'does not run with `--max-warnings 0`'],
+    'a check over the changed files only' => [fn (): string => CiExamples::change(CiExamples::checks(), 'vendor/bin/pint --test', 'vendor/bin/pint --test --dirty'), 'takes a list of changed files'],
+    'a check over the diff of version control' => [fn (): string => CiExamples::change(CiExamples::checks(), 'vendor/bin/pint --test', 'vendor/bin/pint --test $(git diff --name-only)'), 'asks version control for a diff'],
+    'an install that is no lock-file install' => [fn (): string => CiExamples::change(CiExamples::checks(), 'bash scripts/ci-parallel.sh', "npm install\nbash scripts/ci-parallel.sh"), 'does not come from the lock file'],
+    'a lint run with a content cache' => [fn (): string => CiExamples::change(CiExamples::checks(), 'npx eslint . --max-warnings 0', 'npx eslint . --max-warnings 0 --cache'), 'has a content cache'],
+    'an audit of a deploying branch that covers the development tools' => [fn (): string => CiExamples::change(CiExamples::checks(), 'composer audit --locked --no-dev', 'composer audit --locked'), 'does not cover production dependencies only'],
+    'one audit for both runs' => [fn (): string => CiExamples::change(CiExamples::checks(), 'if [ "$RUN" = "--main" ]; then', 'if [ "$RUN" = "--other" ]; then'), 'no separate "Audit" task'],
 ]);
 
-it('detects a checks script that weakens the checks step', function (Closure $script, string $reason) use ($safetyGuard): void {
-    expect(implode("\n", $safetyGuard()->inChecks(Narrow::string($script()), CiExamples::kitConfig())))->toContain($reason);
+it('detects a checks script that weakens the checks step', function (Closure $script, string $reason): void {
+    expect(implode("\n", new CiSafetyGuard('develop')->inChecks(Narrow::string($script()), CiExamples::kitConfig())))->toContain($reason);
 })->with('checks scripts that weaken the checks step');
 
-it('detects a default base branch that is not the branch pull requests target', function () use ($safetyGuard): void {
-    expect(implode("\n", $safetyGuard('main')->inChecks(CiExamples::checksScript(), CiExamples::kitConfig())))->toContain('[base-branch] DEFAULT_BASE_BRANCH of the shared config is not `main`');
+it('detects a default base branch that is not the branch pull requests target', function (): void {
+    expect(implode("\n", new CiSafetyGuard('main')->inChecks(CiExamples::checks(), CiExamples::kitConfig())))->toContain('DEFAULT_BASE_BRANCH in kit-config.sh is not `main`');
 });
 
-it('accepts the checks script, comments that name a banned command and a writing line the owner kept', function () use ($safetyGuard): void {
-    $commented = CiExamples::change(CiExamples::checksScript(), 'set -euo pipefail', "# git push is never run; || true is never written\n# \"Lint::<placeholder in a comment>\"\nset -euo pipefail");
-    $kept = CiExamples::change(CiExamples::checksScript(), 'bash scripts/ci-parallel.sh', "git commit -am autofix\nbash scripts/ci-parallel.sh");
-    $exception = new CiSafetyGuard('develop', ['--guard scripts/ci-ratchets.sh'], [], [], '--offline', 'composer audit', ['git commit -am autofix']);
+it('accepts the checks script, comments that name a banned command and a writing line the owner kept', function (): void {
+    $commented = CiExamples::change(CiExamples::checks(), 'set -euo pipefail', "# git push is never run; || true is never written\n# \"Lint::<placeholder in a comment>\"\nset -euo pipefail");
+    $kept = CiExamples::change(CiExamples::checks(), 'bash scripts/ci-parallel.sh', "git commit -am autofix\nbash scripts/ci-parallel.sh");
 
-    expect($safetyGuard()->inChecks(CiExamples::checksScript(), CiExamples::kitConfig()))->toBe([])
-        ->and($safetyGuard()->inChecks($commented, CiExamples::kitConfig()))->toBe([])
-        ->and($exception->inCommands(['git commit -am autofix']))->toBe([])
-        ->and($exception->inChecks($kept, CiExamples::kitConfig()))->toBe([]);
+    expect(new CiSafetyGuard('develop')->inChecks(CiExamples::checks(), CiExamples::kitConfig()))->toBe([])
+        ->and(new CiSafetyGuard('develop')->inChecks($commented, CiExamples::kitConfig()))->toBe([])
+        ->and(new CiSafetyGuard('develop', ['git commit -am autofix'])->inChecks($kept, CiExamples::kitConfig()))->toBe([]);
+});
+
+dataset('checks scripts whose task runs without its flag', [
+    'a formatter that rewrites' => [fn (): string => CiExamples::change(CiExamples::checks(), 'vendor/bin/pint --test"', 'vendor/bin/pint"'), '[checks-script] the task "Format" runs without `--test`'],
+    'a type coverage below the floor' => [fn (): string => CiExamples::change(CiExamples::checks(), '--min=100', '--min=90'), '[checks-script] the task "Type coverage" runs without `--min=100`'],
+    'guard tests outside the group' => [fn (): string => CiExamples::change(CiExamples::checks(), 'pest --group arch', 'pest'), '[checks-script] the task "Guard tests" runs without `--group arch`'],
+]);
+
+it('detects a task of the checks script that runs without the flag that keeps it on the whole tree', function (Closure $script, string $reason): void {
+    expect(implode("\n", new TaskFlagsGuard(['Format' => '--test', 'Type coverage' => '--min=100', 'Guard tests' => '--group arch'])->inChecks(Narrow::string($script()))))->toContain($reason);
+})->with('checks scripts whose task runs without its flag');
+
+it('accepts a task that carries its flag, and a script that has no such task', function (): void {
+    $guard = new TaskFlagsGuard(['Format' => '--test', 'Missing' => '--x']);
+
+    expect($guard->inChecks(CiExamples::checks()))->toBe([]);
 });
 
 $groupGuard = static fn (string $folder = '', array $kept = ['CiContractArchitectureTest.php']): GuardGroupGuard => new GuardGroupGuard($folder, 'ArchitectureTest.php', "->group('arch')", '--group=arch', Narrow::strings($kept));
@@ -255,7 +172,7 @@ it('reads the YAML of a workflow, a key that a loose parser reads as true, and t
         ->and(YamlNode::text(['x']))->toBe('');
 });
 
-it('keeps the pipeline, the checks script and the task runner as the contract says', function () use ($safetyGuard, $groupGuard, $analyserGuard, $scriptsGuard): void {
+it('keeps the pipeline, the checks script and the task runner as the contract says', function () use ($groupGuard, $analyserGuard, $scriptsGuard): void {
     $root = dirname(__DIR__, 2);
     $config = (string) file_get_contents($root . '/scripts/kit-config.sh');
     $checks = (string) file_get_contents($root . '/scripts/checks.sh');
@@ -272,8 +189,7 @@ it('keeps the pipeline, the checks script and the task runner as the contract sa
     expect($base)->not->toBe('')
         ->and($image)->toStartWith('postgres:')
         ->and(Narrow::strings(explode("\n", mb_trim($parts->getOutput()))))->toBe(['gate', 'static', 'guards', 'repo'])
-        ->and(new GithubWorkflowGuard($root . '/.github/workflows', [$base], 'composer test:unit', 'bash scripts/checks.sh', 'bash scripts/mutation.sh', 'smoke', ['CACHE_STORE' => 'database', 'QUEUE_CONNECTION' => 'database', 'DB_CONNECTION' => 'pgsql'], $image, explode("\n", mb_trim($parts->getOutput())))->violations())->toBe([])
-        ->and($safetyGuard($base)->inChecks($checks, $config))->toBe([])
+        ->and(new CiSafetyGuard($base, zeroWarnings: '')->inChecks($checks, $config))->toBe([])
         ->and($groupGuard($root . '/tests/Unit', [])->violations($checks))->toBe([])
         ->and($analyserGuard($folders, $includes)->violations([$root . '/phpstan.neon', $root . '/phpstan-tests.neon']))->toBe([])
         ->and($scriptsGuard()->inProject($composer, $checks, $bot, $workflows))->toBe([])

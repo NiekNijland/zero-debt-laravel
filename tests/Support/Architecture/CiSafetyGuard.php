@@ -6,22 +6,18 @@ namespace Tests\Support\Architecture;
 
 final readonly class CiSafetyGuard
 {
-    public const array RULES = ['checks-script', 'base-branch', 'audit-production-only', 'read-only'];
+    public const string PLACEHOLDER = '/<[a-z][a-z0-9 ,.:()\/-]*>/';
+
+    private const array REQUIRED_TASKS = ['Format', 'Refactor', 'Analyser', 'Type coverage', 'Lint', 'Guard tests', 'Audit', 'Commit messages', 'Secret scan'];
 
     /**
-     * @param list<string> $stages the commands of the checks script in the order they run: the base copy of the ratchets, the ratchets, the dashboard, the parallel checks
-     * @param list<string> $requiredTasks the names of the tasks of the parallel call
-     * @param array<string, string> $taskFlags a task name and the flag its command carries, so the check stays on the whole tree and blocks
-     * @param list<string> $writingLines lines an owner exception allows to write
+     * @param list<string> $writingLines lines an owner exception allows to write (an autofix commit the owner kept in step 1)
+     * @param string $zeroWarnings the linter's flag for zero warnings allowed (point 5), as the project's linter spells it
      */
     public function __construct(
         private string $baseBranch,
-        private array $stages,
-        private array $requiredTasks,
-        private array $taskFlags,
-        private string $dashboardFlags,
-        private string $auditCommand,
         private array $writingLines = [],
+        private string $zeroWarnings = '--max-warnings 0',
     ) {
     }
 
@@ -32,15 +28,35 @@ final readonly class CiSafetyGuard
     {
         $lines = $this->code($checksScript);
         $text = implode("\n", $lines);
+        $violations = [];
 
-        return [
-            ...$this->stageViolations($text),
-            ...$this->taskViolations($text),
-            ...$this->wholeTreeViolations($text),
-            ...$this->auditViolations($text),
-            ...$this->baseViolations($kitConfig),
-            ...$this->inCommands($lines),
-        ];
+        $positions = array_map(static fn (string $part): int|false => mb_strpos($text, $part), ['--guard scripts/ci-ratchets.sh', 'bash scripts/ci-ratchets.sh', 'debt-dashboard.sh $DASHBOARD_MODE --offline', 'bash scripts/ci-parallel.sh']);
+
+        if (in_array(false, $positions, true) || $positions !== array_values(array_unique($positions)) || $positions !== $this->sorted($positions)) {
+            $violations[] = 'checks.sh does not run its four stages in the order: the base copy of the ratchets with --guard, the ratchets, the dashboard, the parallel checks';
+        }
+
+        if (preg_match('/debt-dashboard\.sh[^\n]*--offline --details/', $text) !== 1) {
+            $violations[] = 'the dashboard line of checks.sh does not run with --offline --details';
+        }
+
+        foreach (self::REQUIRED_TASKS as $task) {
+            if (! str_contains($text, '"' . $task . '::')) {
+                $violations[] = 'checks.sh has no task named "' . $task . '": a check that is no entry of the parallel call does not run';
+            }
+        }
+
+        if (preg_match(self::PLACEHOLDER, $text) === 1) {
+            $violations[] = "checks.sh still holds a <placeholder>: replace it with the project's command";
+        }
+
+        $violations = [...$violations, ...$this->wholeTree($text), ...$this->auditRules($text)];
+
+        if (preg_match('/^DEFAULT_BASE_BRANCH="([^"]*)"/m', $kitConfig, $match) !== 1 || $match[1] !== $this->baseBranch) {
+            $violations[] = 'DEFAULT_BASE_BRANCH in kit-config.sh is not `' . $this->baseBranch . '`, the branch pull requests target';
+        }
+
+        return [...$violations, ...$this->inCommands($lines)];
     }
 
     /**
@@ -57,20 +73,40 @@ final readonly class CiSafetyGuard
             }
 
             if (preg_match('/\bgit\s+(commit|push|add)\b/', $line) === 1) {
-                $violations[] = $this->fail('read-only', 'a command writes to the repository: `' . $line . '` (CI checks and never commits, unless the owner kept an autofix commit: pass the line as an exception)');
+                $violations[] = 'a command writes to the repository: `' . $line . '` (CI checks and never commits, unless the owner kept an autofix commit: pass the line as an exception)';
             }
 
             if (preg_match('/\|\|\s*(true|:|exit\s+0)(?![A-Za-z0-9_])|continue-on-error|allow_failure/', $line) === 1) {
-                $violations[] = $this->fail('checks-script', 'a check is made to succeed anyway: `' . $line . '`');
+                $violations[] = 'a check is made to succeed anyway: `' . $line . '`';
+            }
+
+            if (preg_match('/\bcomposer\s+(update|require)\b|\bnpm\s+(install|i)\b(?!.*(\s-g\b|--global))|\byarn\s+install\b(?!.*(--frozen-lockfile|--immutable))|\bpnpm\s+(install|i)\b(?!.*--frozen-lockfile)/', $line) === 1) {
+                $violations[] = 'an install that does not come from the lock file: `' . $line . '` (composer install, npm ci, yarn install --frozen-lockfile, pnpm install --frozen-lockfile)';
+            }
+
+            if (preg_match('/\beslint\b.*--cache\b|--cache-location/', $line) === 1) {
+                $violations[] = 'the type-aware lint run has a content cache: `' . $line . '` (a per-file result hides a new violation in an unchanged file)';
             }
         }
 
         return $violations;
     }
 
-    private function command(string $text, string $task): ?string
+    /**
+     * @return list<string>
+     */
+    private function auditRules(string $text): array
     {
-        return preg_match('/"' . preg_quote($task, '/') . '::([^"]*)"/', $text, $match) === 1 ? $match[1] : null;
+        $production = '/--omit=dev|--no-dev|--production\b|--prod\b/';
+
+        if (preg_match('/"\$RUN" = "--main" \]; then\s+TASKS\+=\(\s+"Audit::([^"]*)"\s+\)\s+else\s+TASKS\+=\(\s+"Audit::([^"]*)"/', $text, $audit) !== 1) {
+            return ['checks.sh has no separate "Audit" task for --main and for the pull request: a deploying branch audits production dependencies only'];
+        }
+
+        return [
+            ...(preg_match($production, $audit[1]) === 1 ? [] : ['the "Audit" task of --main does not cover production dependencies only (`--omit=dev`, `--no-dev`): an advisory in a development tool would stop a hotfix']),
+            ...(preg_match($production, $audit[2]) === 1 ? ['the "Audit" task of a pull request covers production dependencies only: the full audit runs there'] : []),
+        ];
     }
 
     /**
@@ -84,101 +120,33 @@ final readonly class CiSafetyGuard
         ));
     }
 
-    private function fail(string $rule, string $message): string
+    /**
+     * @param list<int|false> $positions
+     * @return list<int|false>
+     */
+    private function sorted(array $positions): array
     {
-        return '[' . $rule . '] ' . $message;
+        $copy = $positions;
+        sort($copy);
+
+        return $copy;
     }
 
     /**
      * @return list<string>
      */
-    private function stageViolations(string $text): array
-    {
-        $positions = array_map(static fn (string $stage): int|false => mb_strpos($text, $stage), $this->stages);
-        $found = array_filter($positions, is_int(...));
-        $sorted = $found;
-        sort($sorted);
-
-        if (count($found) !== count($positions) || $found !== $sorted || $found !== array_unique($found)) {
-            return [$this->fail('checks-script', 'the checks script does not run its stages in the order: ' . implode(', then ', $this->stages))];
-        }
-
-        $violations = [];
-
-        if (preg_match('/debt-dashboard\.sh[^\n]*' . preg_quote($this->dashboardFlags, '/') . '/', $text) !== 1) {
-            $violations[] = $this->fail('checks-script', 'the dashboard line of the checks script does not run with ' . $this->dashboardFlags);
-        }
-
-        return [...$violations, ...(preg_match('/<[a-z][a-z0-9 ,.:()\/-]*>/', $text) === 1 ? [$this->fail('checks-script', "the checks script still holds a <placeholder>: replace it with the project's command")] : [])];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function taskViolations(string $text): array
+    private function wholeTree(string $text): array
     {
         $violations = [];
 
-        foreach ($this->requiredTasks as $task) {
-            if (! str_contains($text, '"' . $task . '::')) {
-                $violations[] = $this->fail('checks-script', 'the checks script has no task named "' . $task . '": a check that is no entry of the parallel call does not run');
-            }
+        if (preg_match('/--changed\b|--dirty\b|--since\b|\bgit\s+diff\b|CHANGED_FILES/', $text) === 1) {
+            $violations[] = 'a command of checks.sh takes a list of changed files or asks version control for a diff: every check names the whole tree (the mutation run of a pull request is the one exception, and it is not in this script). A drift check of a generated file generates it to a temporary path and compares by content: cmp -s <committed file> "$tmp"';
         }
 
-        foreach ($this->taskFlags as $task => $flag) {
-            $command = $this->command($text, $task);
-
-            if ($command !== null && ! str_contains($command, $flag)) {
-                $violations[] = $this->fail('checks-script', 'the task "' . $task . '" runs without `' . $flag . '`: it must check the whole tree and block');
-            }
+        if (preg_match('/"Lint::([^"]*)"/', $text, $lint) === 1 && ! str_contains($lint[1], $this->zeroWarnings)) {
+            $violations[] = 'the "Lint" task does not run with `' . $this->zeroWarnings . '`: a warning the linter may print is a warning that stays';
         }
 
         return $violations;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function wholeTreeViolations(string $text): array
-    {
-        $violations = [];
-
-        foreach (explode("\n", $text) as $line) {
-            if (preg_match('/git\s+diff\b[^"]*--name-(only|status)|--changed\b|--dirty\b|--diff=|git\s+ls-files\s+-m/', $line) === 1 && ! str_contains($line, 'mutation')) {
-                $violations[] = $this->fail('checks-script', 'a command of the checks script takes a list of changed files: `' . mb_trim($line) . '` (every check names the whole tree)');
-            }
-        }
-
-        return $violations;
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function auditViolations(string $text): array
-    {
-        $audits = array_filter(explode("\n", $text), fn (string $line): bool => str_contains($line, $this->auditCommand));
-
-        if ($audits === []) {
-            return [$this->fail('audit-production-only', 'the checks script has no audit: ' . $this->auditCommand)];
-        }
-
-        $production = array_filter($audits, static fn (string $line): bool => str_contains($line, '--no-dev'));
-
-        return count($production) === count($audits) || $production === []
-            ? [$this->fail('audit-production-only', 'the audit of a deploying branch covers production dependencies only (--no-dev), and the audit of a pull request covers everything: the checks script has ' . ($production === [] ? 'no production-only audit' : 'only production-only audits'))]
-            : [];
-    }
-
-    /**
-     * @return list<string>
-     */
-    private function baseViolations(string $kitConfig): array
-    {
-        if (preg_match('/^DEFAULT_BASE_BRANCH="([^"]*)"/m', $kitConfig, $match) !== 1 || $match[1] !== $this->baseBranch) {
-            return [$this->fail('base-branch', 'DEFAULT_BASE_BRANCH of the shared config is not `' . $this->baseBranch . '`, the branch pull requests target')];
-        }
-
-        return [];
     }
 }

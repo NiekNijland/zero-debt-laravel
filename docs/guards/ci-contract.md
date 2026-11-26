@@ -4,22 +4,10 @@ The contract test reads the workflow files, the checks script, the task runner s
 
 | Rule id | The guide must say (the words the guard pins) | Instead |
 | --- | --- | --- |
-| five-runs | five runs; has no path filter | add the missing run or remove the filter in `kit-checks.yml` |
-| checks-parts | one step per part; checks-result | give each part of the checks script a matrix entry and one step with no condition |
-| no-manual-trigger | has a manual trigger | remove the trigger: a check nobody has to run is a report |
-| pinning | full commit sha; checked against a checksum | pin the action to its sha with the release in a comment, and check a download |
-| time-limits | integer `timeout-minutes` | set an integer timeout-minutes on the job and on every step |
-| nothing-fails | no `continue-on-error` | remove the line that lets a check fail |
-| database-and-drivers | `DATABASE_IMAGE`; the production drivers | use the image of DATABASE_IMAGE and set the production drivers in the smoke job |
-| lock-installs | from the lock file | install with composer install |
-| scheduled-run | the full dashboard; whole-tree mutation run | run the scheduled checks and the whole-tree mutation run in the job on the schedule event |
+| github-workflow | five runs; has no path filter; one step per part; checks-result; has a manual trigger; full commit sha; checked against a checksum; integer `timeout-minutes`; no `continue-on-error`; from the lock file; the full dashboard; whole-tree mutation run; `fetch-depth: 0`; A suite runs once per trigger; `contents: read`; `pull_request_target`; `DATABASE_IMAGE` | the kit's `GithubWorkflowGuard` names the file, the job and the rule in its message: fix that line of the workflow (add the missing run, set the limit, pin the action to its sha with the release in a comment, remove the line that lets a check fail) |
+| drivers | the production drivers | set the production drivers in the smoke job |
 | mutation | mutation tests on the changed files | run the mutation script with --changed in the tests job |
-| full-history | `fetch-depth: 0` | set fetch-depth: 0 and keep the credentials of the checkout |
-| one-suite-per-trigger | A suite runs once per trigger | remove the second job or workflow that runs the suite on the event |
-| read-only | `contents: read`; `pull_request_target` | set contents: read, remove the write permission and the trigger |
-| checks-script | four stages in this order; holds no `<placeholder>` | restore the order of the stages and the tasks of the checks script |
-| base-branch | `DEFAULT_BASE_BRANCH` | set DEFAULT_BASE_BRANCH to the branch pull requests target |
-| audit-production-only | production dependencies only | run the audit of the deploying branch with --no-dev and keep the full audit for pull requests |
+| checks-script | four stages in this order; holds no `<placeholder>`; `DEFAULT_BASE_BRANCH`; production dependencies only | restore the order of the stages and the tasks of the checks script, set DEFAULT_BASE_BRANCH to the branch pull requests target, and run the audit of the deploying branch with --no-dev |
 | guard-group | guard test file is in the guard group | add uses()->group('arch') to the test |
 | analyser-paths | name every folder of the source and test paths | add the folder or the include to the analyser config |
 | composer-scripts | The six scripts of `composer.json` keep their names | restore the script, or the line of the checks script it runs |
