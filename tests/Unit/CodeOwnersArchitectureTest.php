@@ -17,6 +17,9 @@ dataset('code-owners files that leave a guard file without a human review', [
     'the file not covering itself' => [fn (): string => CiExamples::change(CiExamples::codeOwners(), "/.github/CODEOWNERS @lead\n", ''), '[code-owners] .github/CODEOWNERS is covered by no'],
     'a later rule that takes a script out of the review' => [fn (): string => CiExamples::codeOwners() . "/scripts/kit-config.sh\n", '[code-owners] scripts/kit-config.sh is matched last by a rule with no owner'],
     'a pattern that matches nothing' => [fn (): string => CiExamples::change(CiExamples::codeOwners(), "/scripts/ @lead\n", "/script/ @lead\n"), '[code-owners] scripts/checks.sh is covered by no'],
+    'a negated rule' => [fn (): string => CiExamples::codeOwners() . "!/scripts/checks.sh\n", '[code-owners] the pattern `!/scripts/checks.sh` negates a rule'],
+    'a bot as the only owner' => [fn (): string => CiExamples::change(CiExamples::codeOwners(), "/scripts/ @lead\n", "/scripts/ @release-bot\n"), '[code-owners] scripts/checks.sh is owned by a bot only'],
+    'an automation account as the only owner' => [fn (): string => CiExamples::change(CiExamples::codeOwners(), "/scripts/ @lead\n", "/scripts/ @renovate[bot]\n"), '[code-owners] scripts/checks.sh is owned by a bot only'],
     'a section header and a comment in place of a rule' => [fn (): string => "[Section]\n# the scripts\n" . CiExamples::change(CiExamples::codeOwners(), "/scripts/ @lead\n", ''), '[code-owners] scripts/checks.sh is covered by no'],
 ]);
 
@@ -29,7 +32,10 @@ it('detects a code-owners file that leaves a guard file without the review of it
 it('accepts a code-owners file that covers every guard file, wildcards and a trailing comment, and a host that enforces the owners outside the repository', function (): void {
     $wildcard = "# the guard files\n/scripts/* @lead # the owner\n**/workflows/ @lead\n/tests/Support/Architecture/*.php @lead\n/tests/Unit/?*ArchitectureTest.php @lead\n/.github/CODEOWNERS @lead\n/.github/** @lead\n";
 
+    $withBot = CiExamples::change(CiExamples::codeOwners(), "/scripts/ @lead\n", "/scripts/ @lead @release-bot\n");
+
     expect(new CodeOwnersGuard('', CiExamples::guardedPaths())->inCodeOwners(CiExamples::codeOwners()))->toBe([])
+        ->and(new CodeOwnersGuard('', CiExamples::guardedPaths())->inCodeOwners($withBot))->toBe([])
         ->and(new CodeOwnersGuard('', CiExamples::guardedPaths())->inCodeOwners($wildcard))->toBe([])
         ->and(new CodeOwnersGuard('/no/such/CODEOWNERS', CiExamples::guardedPaths(), hostEnforced: true)->violations())->toBe([])
         ->and(implode("\n", new CodeOwnersGuard('/no/such/CODEOWNERS', CiExamples::guardedPaths())->violations()))->toContain('[code-owners] no code-owners file');

@@ -89,6 +89,9 @@ it('names only paths that exist in the guides of the repository', function () us
         $guides[] = mb_substr($file->getPathname(), mb_strlen($root) + 1);
     }
 
-    expect(DocumentedPathGuard::pathsIn((string) file_get_contents($root . '/AGENTS.md')))->not->toBe([])
-        ->and(new DocumentedPathGuard($root, $roots, $guides, 'AGENTS.md')->violations())->toBe([]);
+    $guard = new DocumentedPathGuard($root, $roots, $guides, 'AGENTS.md');
+
+    expect($guard->pathsInGuide('AGENTS.md'))->not->toBe([])
+        ->and($guard->violations())->toBe([])
+        ->and(fn (): array => $guard->pathsInGuide('RENAMED.md'))->toThrow(RuntimeException::class, 'does not exist');
 });

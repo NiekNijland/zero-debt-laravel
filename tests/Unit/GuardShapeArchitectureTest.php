@@ -48,6 +48,7 @@ dataset('guards that keep the shape', [
     'a pattern that holds a folder name' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return '/^app\\\\//';")]],
     'a path that no file has' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'app/Missing/Thing.php';")]],
     'a sentence that names a folder' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'put it in app/Models please';")]],
+    'a relative prefix' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return str_starts_with(\$uses, './') || str_starts_with(\$uses, '../');")]],
     'a glob' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'app/*.php';")]],
     'a class name' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'App\\\\Models\\\\Note';")]],
     'a reader class that is no guard and no test names' => [['tests/Support/Architecture/FooReader.php' => GuardShapeArchitectureHelpers::detector(name: 'FooReader')]],

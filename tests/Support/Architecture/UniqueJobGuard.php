@@ -52,7 +52,7 @@ final readonly class UniqueJobGuard
         foreach ($graph->concreteClasses() as $class) {
             $contract = $graph->reaches($class, self::UNIQUE_CONTRACTS);
 
-            if ($contract === null || $graph->hasMethod($class, 'uniqueId') || $graph->property($class, 'uniqueId') === 'instance') {
+            if ($contract === null || $graph->hasMethod($class, 'uniqueId', callable: true) || $graph->property($class, 'uniqueId') === 'instance') {
                 continue;
             }
 

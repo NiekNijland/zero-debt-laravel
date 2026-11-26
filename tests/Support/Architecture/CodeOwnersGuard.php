@@ -38,6 +38,12 @@ final readonly class CodeOwnersGuard
         $rules = $this->rules($text);
         $violations = [];
 
+        foreach ($rules as [$pattern]) {
+            if (str_starts_with($pattern, '!')) {
+                $violations[] = '[code-owners] the pattern `' . $pattern . '` negates a rule: the code-owners file has no negation, and the host reads such a line as an invalid rule';
+            }
+        }
+
         foreach ($this->paths as $path) {
             $owners = null;
 
@@ -51,6 +57,8 @@ final readonly class CodeOwnersGuard
                 $violations[] = '[code-owners] ' . $path . " is covered by no code-owners rule: an author could edit it, or write the override tag, without the owner's review";
             } elseif ($owners === []) {
                 $violations[] = '[code-owners] ' . $path . ' is matched last by a rule with no owner: that rule takes the file out of the review';
+            } elseif (array_filter($owners, static fn (string $owner): bool => preg_match('/(\[bot\]|[-_]bot|^@?bot|^@?github-actions)$/i', $owner) === 1) === $owners) {
+                $violations[] = '[code-owners] ' . $path . ' is owned by a bot only (' . implode(', ', $owners) . '): an automation account is not the person who reads the reason of an override';
             }
         }
 

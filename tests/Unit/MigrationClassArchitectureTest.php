@@ -53,6 +53,11 @@ it('names the file of a migration that names a class, in a checkout under a dot 
         ->and($empty[0])->toContain('no migration was read');
 });
 
+it('throws on a migration folder that does not exist', function (): void {
+    expect(fn (): array => new MigrationClassGuard(dirname(__DIR__, 2), 'database/renamed-migrations', [NotePermission::class], 'App\\')->violations())
+        ->toThrow(InvalidArgumentException::class, 'does not exist');
+});
+
 it('keeps application classes out of the migrations', function (): void {
     expect(new MigrationClassGuard(dirname(__DIR__, 2), 'database/migrations', [NotePermission::class], 'App\\')->violations())->toBe([]);
 });

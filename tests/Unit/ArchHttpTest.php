@@ -217,6 +217,12 @@ it('reads the route files below a checkout under a dot directory', function (): 
         ->and($violations[0])->toStartWith('routes/a.php: a route file imports a controller');
 });
 
+it('fails on a named route file that does not exist', function (): void {
+    $guard = new ImportSpellingGuard(dirname(__DIR__, 2), 'App\Http\Controllers');
+
+    expect(fn (): array => $guard->controllerImports(['routes/renamed.php']))->toThrow(RuntimeException::class, 'does not exist');
+});
+
 it('imports a controller folder in the route files and never a controller', function (): void {
     $guard = new ImportSpellingGuard(dirname(__DIR__, 2), 'App\Http\Controllers');
 

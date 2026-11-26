@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Support\Architecture;
 
+use InvalidArgumentException;
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\StaticCall;
@@ -32,6 +33,10 @@ final readonly class MigrationShapeGuard
      */
     public function violations(): array
     {
+        if (! is_dir($this->root . '/' . $this->migrations)) {
+            throw new InvalidArgumentException('The directory ' . $this->root . '/' . $this->migrations . ' does not exist: a guard over a missing folder would pass without reading a file');
+        }
+
         $violations = [];
 
         foreach (Globs::of($this->root . '/' . $this->migrations . '/*.php') as $file) {

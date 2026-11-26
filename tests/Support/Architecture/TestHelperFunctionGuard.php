@@ -76,6 +76,18 @@ final readonly class TestHelperFunctionGuard
                 if ($name?->is(T_STRING) === true && ($braces === [] || end($braces) === false)) {
                     $functions[] = $name->text;
                 }
+            } elseif ($token->is(T_CONST) && $previous?->is(T_USE) !== true) {
+                $name = $tokens[$index + 1] ?? null;
+
+                if ($name?->is(T_STRING) === true && ($braces === [] || end($braces) === false)) {
+                    $functions[] = 'const ' . $name->text;
+                }
+            } elseif ($token->is(T_STRING) && mb_strtolower($token->text) === 'define' && ($tokens[$index + 1] ?? null)?->text === '(' && $previous?->is([T_OBJECT_OPERATOR, T_NULLSAFE_OBJECT_OPERATOR, T_DOUBLE_COLON, T_FUNCTION, T_NEW]) !== true) {
+                $name = $tokens[$index + 2] ?? null;
+
+                if ($name?->is(T_CONSTANT_ENCAPSED_STRING) === true && ($braces === [] || end($braces) === false)) {
+                    $functions[] = 'define ' . mb_trim($name->text, '\'"');
+                }
             }
         }
 

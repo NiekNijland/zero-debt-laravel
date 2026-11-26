@@ -84,6 +84,11 @@ it('holds from the first file on, and names the file relative to the root under 
         ->and($violations[0])->toContain('a migration without down()');
 });
 
+it('throws on a migrations folder that does not exist', function (): void {
+    expect(fn (): array => new MigrationShapeGuard(dirname(__DIR__, 2), 'database/renamed-migrations', '0001_01_01_000000')->violations())
+        ->toThrow(InvalidArgumentException::class, 'does not exist');
+});
+
 it('keeps every migration of the project, from the first one, in shape', function (): void {
     expect(new MigrationShapeGuard(dirname(__DIR__, 2), 'database/migrations', '0001_01_01_000000')->violations())->toBe([]);
 });

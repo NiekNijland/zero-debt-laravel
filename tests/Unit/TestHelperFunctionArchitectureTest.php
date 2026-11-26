@@ -18,6 +18,10 @@ dataset('functions declared in a test file', [
     'function after an anonymous class with a closure argument' => ["<?php\n\$probe = new class(fn () => 1) { public function run(): void {} };\nfunction helper(): void {}\n", ['helper']],
     'function after a class constant fetch' => ["<?php\n\$name = Foo::class;\nfunction helper(): void {}\n", ['helper']],
     'two functions' => ["<?php\nfunction first(): void {}\nfunction second(): void {}\n", ['first', 'second']],
+    'a global constant' => ["<?php\nconst ROWS = [1, 2];\n", ['const ROWS']],
+    'a global constant in a namespace' => ["<?php\nnamespace Tests\\Feature;\nconst ROWS = 1;\n", ['const ROWS']],
+    'a constant defined by define' => ["<?php\ndefine('ROWS', 1);\n", ['define ROWS']],
+    'a constant after a class' => ["<?php\nfinal class Foo { public const A = 1; }\nconst B = 2;\n", ['const B']],
 ]);
 
 it('detects every named function a test file declares', function (string $source, array $functions): void {
@@ -42,6 +46,11 @@ dataset('files the test helper function guard allows', [
     'imported function' => ["<?php\nuse function Pest\\Laravel\\actingAs;\n"],
     'function in a string' => ["<?php\n\$source = 'function helper() {}';\n"],
     'function in a heredoc' => ["<?php\n\$source = <<<'PHP'\nfunction helper() {}\nPHP;\n"],
+    'imported constant' => ["<?php\nuse const Foo\\BAR;\n"],
+    'class constant' => ["<?php\nfinal class Foo { public const A = 1; private const array B = [1]; }\n"],
+    'enum and interface constant' => ["<?php\nenum Status: string { const DEFAULT = self::A; case A = 'a'; }\ninterface Probe { public const X = 1; }\n"],
+    'a method named define' => ["<?php\n\$builder->define('ROWS', 1);\nFoo::define('ROWS', 1);\n"],
+    'constant in a string' => ["<?php\n\$source = 'const ROWS = 1;';\n"],
     'function in a comment' => ["<?php\n// function helper() {}\n"],
 ]);
 

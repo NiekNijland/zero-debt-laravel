@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Tests\Support\Architecture;
 
+use RuntimeException;
+
 use Tests\Support\Globs;
 
 final readonly class ImportSpellingGuard
@@ -23,6 +25,8 @@ final readonly class ImportSpellingGuard
         $violations = [];
 
         foreach ($files as $path) {
+            throw_unless(is_file($this->root . '/' . $path), RuntimeException::class, "the file {$path} does not exist under the root: a guard that reads a named file fails when it is renamed");
+
             foreach ($this->controllerImportInSource((string) file_get_contents($this->root . '/' . $path)) as $message) {
                 $violations[] = $path . ': ' . $message;
             }

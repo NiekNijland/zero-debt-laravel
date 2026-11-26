@@ -132,7 +132,7 @@ final readonly class GuardShapeGuard
     {
         $trimmed = mb_trim($literal, '/');
 
-        if ($trimmed === '' || preg_match('/[\s*?{}()\[\]^$|\\\\]/', $trimmed) === 1) {
+        if ($trimmed === '' || in_array($trimmed, ['.', '..'], true) || preg_match('/[\s*?{}()\[\]^$|\\\\]/', $trimmed) === 1) {
             return false;
         }
 

@@ -36,6 +36,7 @@ dataset('classes that are open', [
     'a tagged parent that another class extends: nothing exempts a concrete parent' => [['app/Modules/Orders/Support/Cart.php' => "/** @final */\nclass Cart {}", 'app/Modules/Orders/Support/GiftCart.php' => 'final class GiftCart extends Cart {}'], ['extended-concrete App\Modules\Orders\Support\Cart'], 'make the parent `abstract`'],
     'the tag on a final class' => [['app/Modules/Orders/Support/Cart.php' => "/** @final */\nfinal class Cart {}"], ['stale-open App\Modules\Orders\Support\Cart'], 'carries the docblock tag `@final` and is final or abstract: delete the tag'],
     'the tag on an abstract class' => [['app/Modules/Orders/Support/Base.php' => "/** @final */\nabstract class Base {}"], ['stale-open App\Modules\Orders\Support\Base'], 'delete the tag'],
+    'a docblock word that only starts with the tag' => [['app/Modules/Orders/Support/Cart.php' => "/** not @finalized */\nclass Cart {}"], ['open-class App\Modules\Orders\Support\Cart'], 'is not final: declare it `final`'],
     'a file the parser cannot read' => [['app/Broken.php' => "<?php\nfinal class Broken {\n"], ['unreadable app/Broken.php: Syntax error, unexpected EOF on line 3'], 'unreadable app/Broken.php'],
 ]);
 

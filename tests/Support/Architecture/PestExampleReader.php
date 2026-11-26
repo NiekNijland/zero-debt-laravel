@@ -12,6 +12,7 @@ use PhpParser\Node\Expr\ArrowFunction;
 use PhpParser\Node\Expr\Closure;
 use PhpParser\Node\Expr\FuncCall;
 use PhpParser\Node\Expr\MethodCall;
+use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
 use PhpParser\Node\Scalar\MagicConst\Dir;
@@ -157,9 +158,11 @@ final class PestExampleReader
             static fn (FuncCall $call): bool => self::functionName($call) === 'dirname' && ($call->getArgs()[0] ?? null)?->value instanceof Dir,
         );
 
+        $calls = [...$finder->findInstanceOf($body, MethodCall::class), ...$finder->findInstanceOf($body, StaticCall::class)];
+
         return $dirname && array_any(
-            $finder->findInstanceOf($body, MethodCall::class),
-            static fn (MethodCall $call): bool => $call->name instanceof Identifier && preg_match('/violations|findings/i', $call->name->toString()) === 1,
+            $calls,
+            static fn (MethodCall|StaticCall $call): bool => $call->name instanceof Identifier && preg_match('/violations|findings/i', $call->name->toString()) === 1,
         );
     }
 

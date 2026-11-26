@@ -27,3 +27,7 @@ it('reads the statements of a file with every name resolved', function (): void 
 it('reads an empty file as no statements', function (): void {
     expect(TemporarySource::with('', PhpSource::statements(...)))->toBe([]);
 });
+
+it('fails on a file that does not exist, so a renamed file is not read as an empty tree', function (): void {
+    expect(fn (): array => PhpSource::statements(dirname(__DIR__, 2) . '/tests/Support/Architecture/Renamed.php'))->toThrow(RuntimeException::class, 'does not exist');
+});

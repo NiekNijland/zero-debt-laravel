@@ -21,6 +21,7 @@ dataset('pest test sources', [
     'an empty result over the own root with an in-source method' => ["<?php\nit('a', function (): void { expect((new G(dirname(__DIR__, 2)))->inSource('x'))->toBe([]); });\n", ['group' => false, 'failing' => false, 'passing' => true, 'realTree' => false]],
     'the real tree' => ["<?php\nit('a', function (): void { expect((new G(dirname(__DIR__, 2)))->violations())->toBe([]); });\n", ['group' => false, 'failing' => false, 'passing' => false, 'realTree' => true]],
     'the real tree as findings' => ["<?php\nit('a', function (): void { expect((new G(dirname(__DIR__, 2)))->findings())->toBeEmpty(); });\n", ['group' => false, 'failing' => false, 'passing' => false, 'realTree' => true]],
+    'the real tree through a static detector' => ["<?php\nit('a', function (): void { expect(G::violations(new I(), dirname(__DIR__, 2), 'app'))->toBe([]); });\n", ['group' => false, 'failing' => false, 'passing' => false, 'realTree' => true]],
     'a real tree case that has a dataset' => ["<?php\nit('a', function (): void { expect((new G(dirname(__DIR__, 2)))->violations())->toBe([]); })->with([1]);\n", ['group' => false, 'failing' => false, 'passing' => true, 'realTree' => false]],
     'a root that is not the own file location' => ["<?php\nit('a', function (): void { expect((new G(\$root))->violations())->toBe([]); });\n", ['group' => false, 'failing' => false, 'passing' => true, 'realTree' => false]],
 ]);

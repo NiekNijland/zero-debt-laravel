@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Support\Architecture;
 
+use RuntimeException;
 use Tests\Support\RecursiveFiles;
 
 final readonly class DocumentedPathGuard
@@ -43,6 +44,16 @@ final readonly class DocumentedPathGuard
         }
 
         return $paths;
+    }
+
+    /**
+     * @return list<array{int, string}>
+     */
+    public function pathsInGuide(string $guide): array
+    {
+        throw_unless(is_file($this->root . '/' . $guide), RuntimeException::class, "the guide {$guide} does not exist under the root");
+
+        return self::pathsIn((string) file_get_contents($this->root . '/' . $guide));
     }
 
     /**

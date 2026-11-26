@@ -28,20 +28,33 @@ it('accepts a task that ends in onOneServer, in any place of the chain', functio
         ->and($guard->inSource('<?php $schedule->call(fn () => 1); Other::call(fn () => 2);'))->toBe([]);
 });
 
-it('reads the route files below a checkout under a dot directory and fails on a folder with no task', function (): void {
-    $root = SourceSandbox::create(['routes/console.php' => "<?php\nSchedule::command('a')->daily();\n", 'empty/x.php' => "<?php\n"], prefix: '.checkout-');
+it('reads the route files below a checkout under a dot directory', function (): void {
+    $root = SourceSandbox::create(['routes/console.php' => "<?php\nSchedule::command('a')->daily();\n"], prefix: '.checkout-');
 
     try {
         $violations = new ScheduledOneServerGuard($root, 'routes')->violations();
-        $empty = new ScheduledOneServerGuard($root, 'empty')->violations();
     } finally {
         SourceSandbox::remove($root);
     }
 
     expect($violations)->toHaveCount(1)
-        ->and($violations[0])->toStartWith('routes/console.php: line 2: a scheduled task does not run on one server')
-        ->and($empty)->toHaveCount(1)
-        ->and($empty[0])->toContain('no scheduled task was read');
+        ->and($violations[0])->toStartWith('routes/console.php: line 2: a scheduled task does not run on one server');
+});
+
+it('passes a schedule with no task and fails on a folder that does not exist or holds no file', function (): void {
+    $root = SourceSandbox::create(['routes/console.php' => "<?php\n// nothing is scheduled yet\n", 'empty/.gitkeep' => ''], prefix: '.checkout-');
+
+    try {
+        $none = new ScheduledOneServerGuard($root, 'routes')->violations();
+        $missing = fn (): array => new ScheduledOneServerGuard($root, 'renamed')->violations();
+        $empty = fn (): array => new ScheduledOneServerGuard($root, 'empty')->violations();
+
+        expect($none)->toBe([])
+            ->and($missing)->toThrow(InvalidArgumentException::class, 'does not exist')
+            ->and($empty)->toThrow(InvalidArgumentException::class, 'holds no PHP file');
+    } finally {
+        SourceSandbox::remove($root);
+    }
 });
 
 it('runs every scheduled task as a command on one server', function (): void {

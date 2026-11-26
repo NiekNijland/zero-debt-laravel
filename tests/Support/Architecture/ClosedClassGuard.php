@@ -54,7 +54,7 @@ final readonly class ClosedClassGuard
                     $extended[$class->extends->toString()] = true;
                 }
 
-                $tag = str_contains((string) $class->getDocComment(), '@final');
+                $tag = preg_match('/@final(?![A-Za-z0-9_])/', (string) $class->getDocComment()) === 1;
 
                 if (! $class->isAbstract()) {
                     $concrete[$name] = $class->isFinal();

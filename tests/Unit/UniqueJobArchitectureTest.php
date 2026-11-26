@@ -20,6 +20,9 @@ dataset('unique jobs without their own key', [
     'a parent that already holds the contract' => [$head . "abstract class BaseJob implements ShouldBeUnique {}\nfinal class ChildJob extends BaseJob {}\n", 'App\\ChildJob implements ShouldBeUnique without uniqueId()'],
     'a sub-interface that only declares the method' => [$head . "interface KeyedJob extends ShouldBeUnique { public function uniqueId(): string; }\nfinal class DeclaredJob implements KeyedJob {}\n", 'App\\DeclaredJob implements ShouldBeUnique without uniqueId()'],
     'a trait without the method' => [$head . "trait Retries { public int \$tries = 3; }\nfinal class TraitJob implements ShouldBeUnique { use Retries; }\n", 'App\\TraitJob implements ShouldBeUnique without uniqueId()'],
+    'a private uniqueId the framework cannot call' => [$head . "final class PrivateJob implements ShouldBeUnique { private function uniqueId(): string { return 'k'; } }\n", 'App\\PrivateJob implements'],
+    'a static uniqueId' => [$head . "final class StaticJob implements ShouldBeUnique { public static function uniqueId(): string { return 'k'; } }\n", 'App\\StaticJob implements'],
+    'a protected uniqueId from a trait' => [$head . "trait HasKey { protected function uniqueId(): string { return 'k'; } }\nfinal class TraitJob implements ShouldBeUnique { use HasKey; }\n", 'App\\TraitJob implements'],
     'a property with a default, one lock per class' => [$head . "final class FixedJob implements ShouldBeUnique { public string \$uniqueId = 'x'; }\n", 'a $uniqueId property that has a default'],
     'an anonymous class' => [$head . "\$job = new class implements ShouldBeUnique {};\n", 'an anonymous class on line'],
 ]);

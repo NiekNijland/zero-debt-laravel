@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Support\Architecture;
 
+use InvalidArgumentException;
 use Tests\Support\Globs;
 
 final readonly class MigrationClassGuard
@@ -24,6 +25,10 @@ final readonly class MigrationClassGuard
      */
     public function violations(): array
     {
+        if (! is_dir($this->root . '/' . $this->folder)) {
+            throw new InvalidArgumentException('The directory ' . $this->root . '/' . $this->folder . ' does not exist: a guard over a missing folder would pass without reading a file');
+        }
+
         $files = Globs::of($this->root . '/' . $this->folder . '/*.php');
         $violations = $files === [] ? [$this->folder . ': no migration was read, so the guard has read nothing: is the folder renamed?'] : [];
 

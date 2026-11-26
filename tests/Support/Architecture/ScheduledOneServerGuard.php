@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Support\Architecture;
 
+use InvalidArgumentException;
 use PhpToken;
 use Tests\Support\Globs;
 
@@ -20,20 +21,22 @@ final readonly class ScheduledOneServerGuard
      */
     public function violations(): array
     {
-        $violations = [];
-        $scheduled = 0;
-
-        foreach (Globs::of($this->root . '/' . $this->folder . '/*.php') as $file) {
-            $source = (string) file_get_contents($file);
-            $scheduled += count($this->tasks($source));
-
-            foreach ($this->inSource($source) as $message) {
-                $violations[] = mb_substr($file, mb_strlen($this->root) + 1) . ': ' . $message;
-            }
+        if (! is_dir($this->root . '/' . $this->folder)) {
+            throw new InvalidArgumentException('The directory ' . $this->root . '/' . $this->folder . ' does not exist: a guard over a missing folder would pass without reading a file');
         }
 
-        if ($scheduled === 0) {
-            $violations[] = $this->folder . ': no scheduled task was read, so the guard has read nothing: is the folder renamed?';
+        $files = Globs::of($this->root . '/' . $this->folder . '/*.php');
+
+        if ($files === []) {
+            throw new InvalidArgumentException('The directory ' . $this->folder . ' holds no PHP file: is the schedule file renamed or moved?');
+        }
+
+        $violations = [];
+
+        foreach ($files as $file) {
+            foreach ($this->inSource((string) file_get_contents($file)) as $message) {
+                $violations[] = mb_substr($file, mb_strlen($this->root) + 1) . ': ' . $message;
+            }
         }
 
         return $violations;
