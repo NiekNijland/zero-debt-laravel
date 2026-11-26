@@ -16,6 +16,7 @@ parameters:
         - bootstrap/providers.php
         - config
         - database
+        - lang
         - public
         - routes
 
@@ -63,7 +64,7 @@ parameters:
             message: 'dispatch an event of the application with XEvent::dispatch(...), and an event that is built earlier or comes from a vendor with Event::dispatch($event)'
         -
             function: 'json_decode()'
-            message: 'decode with the flag JSON_THROW_ON_ERROR, or with Json::decodeOrNull($json) (App\Support\Json) when text that is not JSON is expected'
+            message: 'decode with the flag JSON_THROW_ON_ERROR'
             allowParamFlagsAnywhere:
                 -
                     position: 4
@@ -71,7 +72,7 @@ parameters:
                     value: 4194304
         -
             function: 'json_encode()'
-            message: 'encode with the flag JSON_THROW_ON_ERROR, or with Json::encodeOrNull($value) (App\Support\Json) when the value holds text from outside that may not be UTF-8'
+            message: 'encode with the flag JSON_THROW_ON_ERROR'
             allowParamFlagsAnywhere:
                 -
                     position: 2

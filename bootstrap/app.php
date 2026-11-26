@@ -17,11 +17,13 @@ use Illuminate\Support\Facades\Route;
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
         api: __DIR__ . '/../routes/api.php',
+        commands: __DIR__ . '/../routes/console.php',
         apiPrefix: 'api/v1',
         then: static function (): void {
             Route::middleware([SubstituteBindings::class, SetLocale::class, 'throttle:read'])->group(__DIR__ . '/../routes/web.php');
         },
     )
+    ->withEvents(discover: [__DIR__ . '/../app/Modules/*/Listeners'])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->api(prepend: [SetApiLocale::class]);
         $middleware->prependToPriorityList(before: AuthenticatesRequests::class, prepend: SetApiLocale::class);

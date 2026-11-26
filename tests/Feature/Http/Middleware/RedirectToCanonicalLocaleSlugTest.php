@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 it('redirects the slug of another locale to the canonical slug', function (): void {
-    $this->get('/nl/about?ref=1')->assertRedirect('http://localhost/nl/over?ref=1')->assertStatus(301);
+    $this->get('/nl/about?ref=1')->assertRedirect('http://localhost/nl/over?ref=1')->assertMovedPermanently();
 });
 
 it('lets the canonical slug through', function (): void {
@@ -15,5 +15,5 @@ it('lets an unknown slug through to the controller', function (): void {
 });
 
 it('does not redirect a request that is not safe', function (): void {
-    $this->post('/nl/about')->assertStatus(405);
+    $this->post('/nl/about')->assertMethodNotAllowed();
 });
