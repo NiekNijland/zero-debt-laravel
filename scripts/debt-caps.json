@@ -1,0 +1,15 @@
+{
+    "source-files-over-limit": 0,
+    "frontend-files-over-limit": 0,
+    "test-files-over-limit": 0,
+    "open-classes": 0,
+    "classes-no-test-names": 0,
+    "classes-without-own-test": 0,
+    "support-classes-without-own-test": 0,
+    "frontend-logic-without-test": 0,
+    "frontend-components-without-test": 0,
+    "docs-older-than-limit": 0,
+    "dependency-advisories": 0,
+    "dependencies-abandoned": 0,
+    "dependencies-majors-behind": 0
+}
