@@ -89,6 +89,9 @@ jobs:
       - name: Run the dashboard with the kit's script
         timeout-minutes: 15
         run: bash scripts/debt-dashboard.sh --final --offline --details
+      - name: Move the kit checkout out of the workspace, the formatter reads every file below it
+        timeout-minutes: 2
+        run: mv kit-main "$RUNNER_TEMP/kit-main"
       - name: Run the static checks with the kit's scripts
         timeout-minutes: 20
         run: bash scripts/checks.sh --main --part static
