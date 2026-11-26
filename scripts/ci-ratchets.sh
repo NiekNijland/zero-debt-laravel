@@ -85,7 +85,7 @@ loose-comparisons                      max  grep   @SOURCE_PATHS,@TEST_PATHS  (^
 mutable-dates                          max  grep   @SOURCE_PATHS,@TEST_PATHS  (^|[^A-Za-z0-9_])(DateTime|Carbon)(::|[[:space:]]*[(;,)])
 byte-string-functions                  max  grep   @SOURCE_PATHS,@TEST_PATHS  (^|[^A-Za-z0-9_>:$\\])\\?(strlen|substr|strpos|strrpos|stripos|strripos|strstr|stristr|strrchr|substr_count|str_split|strtolower|strtoupper)[(]
 queue-bus-fake-all                     max  grep   @TEST_PATHS,:(exclude)*.md  (Queue|Bus)::fake(For)?\([[:space:]]*(\[[[:space:]]*\])?[[:space:]]*(\)|$)
-guide-future-tense                     max  grep   app/AGENTS.md,tests/AGENTS.md  (^|[^A-Za-z])([Ww]ill|[Ff]or now|[Uu]ntil)([^A-Za-z]|$)
+guide-future-tense                     max  grep   AGENTS.md,README.md,app/AGENTS.md,tests/AGENTS.md,docs  (^|[^A-Za-z])([Ww]ill|[Ff]or now|[Uu]ntil)([^A-Za-z]|$)
 unused-ignore                          max  grep   composer-unused.php?  NamedFilter::fromString
 cap-autoload-conformance               max  json   @CAPS_FILE  value autoload-conformance
 cap-ci-duration-minutes                max  json   @CAPS_FILE  value ci-duration-minutes

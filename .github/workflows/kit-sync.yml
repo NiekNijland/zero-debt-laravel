@@ -1,0 +1,99 @@
+name: Kit sync
+
+on:
+  schedule:
+    - cron: '23 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: kit-sync
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Check out the starter, with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          fetch-depth: 0
+      - name: Read the pinned kit commit
+        id: pin
+        timeout-minutes: 2
+        run: |
+          read -r pin < .zero-debt-kit-version
+          [[ "$pin" =~ ^([A-Za-z0-9._-]+/[A-Za-z0-9._-]+)@([0-9a-f]{40})$ ]]
+          echo "repository=${BASH_REMATCH[1]}" >> "$GITHUB_OUTPUT"
+          echo "sha=${BASH_REMATCH[2]}" >> "$GITHUB_OUTPUT"
+      - name: Check out the kit, default branch, with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          repository: ${{ steps.pin.outputs.repository }}
+          path: kit-main
+          fetch-depth: 0
+      - name: Compare the kit's head with the pin
+        id: kit
+        timeout-minutes: 2
+        env:
+          PINNED: ${{ steps.pin.outputs.sha }}
+        run: |
+          latest="$(git -C kit-main rev-parse HEAD)"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+          echo "short=${latest:0:7}" >> "$GITHUB_OUTPUT"
+          if [ "$latest" = "$PINNED" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; else echo "changed=true" >> "$GITHUB_OUTPUT"; fi
+      - name: Report what the kit changed in the scripts of this repository
+        if: steps.kit.outputs.changed == 'true'
+        timeout-minutes: 5
+        run: |
+          # TODO: tools/doctor.sh is on the kit's main only once the kit commit that adds it is pushed; until then this step fails with the message below.
+          test -f kit-main/tools/doctor.sh || { echo "The kit at kit-main has no tools/doctor.sh: push the kit commit that adds it" >&2; exit 1; }
+          status=0
+          bash kit-main/tools/doctor.sh --project "$PWD" > sync-report.txt || status=$?
+          echo "Doctor exit status: $status" >> sync-report.txt
+          cat sync-report.txt
+      - name: Bring the scripts to the kit's version, keeping the project's config
+        if: steps.kit.outputs.changed == 'true'
+        timeout-minutes: 5
+        run: bash kit-main/tools/doctor.sh --project "$PWD" --upgrade-plan --apply
+      - name: Move the pin
+        if: steps.kit.outputs.changed == 'true'
+        timeout-minutes: 2
+        env:
+          REPOSITORY: ${{ steps.pin.outputs.repository }}
+          LATEST: ${{ steps.kit.outputs.latest }}
+        run: printf '%s@%s\n' "$REPOSITORY" "$LATEST" > .zero-debt-kit-version
+      - name: Prove the ratchet rows still count after the upgrade
+        if: steps.kit.outputs.changed == 'true'
+        timeout-minutes: 10
+        run: bash scripts/ci-ratchets.sh --self-test
+      - name: Open the bump pull request
+        if: steps.kit.outputs.changed == 'true'
+        uses: peter-evans/create-pull-request@3ffccacd46053766916f087ce41d627c0b8cf2d1 # v8.1.3
+        timeout-minutes: 5
+        with:
+          token: ${{ secrets.KIT_SYNC_TOKEN }}
+          branch: kit-sync
+          delete-branch: true
+          add-paths: |
+            .zero-debt-kit-version
+            scripts
+          commit-message: |
+            NOTICKET chore(kit): move the kit pin to ${{ steps.kit.outputs.short }}
+
+            [ratchet: script] upgrade the kit scripts to ${{ steps.kit.outputs.latest }}
+          title: 'NOTICKET chore(kit): move the kit pin to ${{ steps.kit.outputs.short }}'
+          body-path: sync-report.txt
+          labels: kit-sync

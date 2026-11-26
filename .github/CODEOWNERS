@@ -6,6 +6,7 @@
 /tests/Unit/*ArchitectureTest.php @OWNER
 /.git-blame-ignore-revs @OWNER
 /renovate.json @OWNER
+/.zero-debt-kit-version @OWNER
 /tools/codemods/ @OWNER
 /.github/CODEOWNERS @OWNER
 /CODEOWNERS @OWNER

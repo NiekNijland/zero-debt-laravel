@@ -1,0 +1,344 @@
+name: Kit checks
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, edited]
+  push:
+    branches: ['main']
+  schedule:
+    - cron: '17 3 * * *'
+
+concurrency:
+  group: kit-${{ github.event_name }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  checks:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [gate, static, guards, repo]
+    env:
+      CHECK_BASE: ${{ github.base_ref }}
+    services:
+      database:
+        image: postgres:17
+        env:
+          POSTGRES_USER: laravel
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: laravel
+        ports:
+          - 5440:5432
+        options: >-
+          --health-cmd "pg_isready -U laravel"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - name: Check out the merge of the pull request, with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          fetch-depth: 0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        timeout-minutes: 10
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pcov
+          coverage: pcov
+          tools: composer:2.9
+      - name: Find the Composer cache
+        id: composer-cache
+        timeout-minutes: 2
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - name: Cache the Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('composer.lock') }}
+      - name: Install from the lock file
+        timeout-minutes: 10
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Install gitleaks
+        if: matrix.part == 'repo'
+        timeout-minutes: 5
+        env:
+          GITLEAKS_VERSION: 8.30.1
+          GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+        run: |
+          curl -sSfL -o gitleaks.tgz "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "${GITLEAKS_SHA256}  gitleaks.tgz" | sha256sum -c -
+          tar -xzf gitleaks.tgz gitleaks
+          sudo install -m 0755 gitleaks /usr/local/bin/gitleaks
+          rm gitleaks.tgz gitleaks
+      - name: Run one part of the checks
+        timeout-minutes: 25
+        run: bash scripts/checks.sh --part ${{ matrix.part }}
+
+  checks-result:
+    if: always() && github.event_name == 'pull_request'
+    needs: [checks]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Every part of the checks run passed
+        timeout-minutes: 2
+        env:
+          RESULT: ${{ needs.checks.result }}
+        run: test "$RESULT" = success
+
+  checks-main:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [gate, static, guards, repo]
+    services:
+      database:
+        image: postgres:17
+        env:
+          POSTGRES_USER: laravel
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: laravel
+        ports:
+          - 5440:5432
+        options: >-
+          --health-cmd "pg_isready -U laravel"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - name: Check out the branch, with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          fetch-depth: 0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        timeout-minutes: 10
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pcov
+          coverage: pcov
+          tools: composer:2.9
+      - name: Find the Composer cache
+        id: composer-cache
+        timeout-minutes: 2
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - name: Cache the Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('composer.lock') }}
+      - name: Install from the lock file
+        timeout-minutes: 10
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Run one part of the checks on the deploying branch
+        timeout-minutes: 25
+        run: bash scripts/checks.sh --main --part ${{ matrix.part }}
+
+  backend-tests:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CHECK_BASE: ${{ github.base_ref }}
+    services:
+      database:
+        image: postgres:17
+        env:
+          POSTGRES_USER: laravel
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: laravel
+        ports:
+          - 5440:5432
+        options: >-
+          --health-cmd "pg_isready -U laravel"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - name: Check out the merge of the pull request, with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          fetch-depth: 0
+      - name: Set up PHP with pcov
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        timeout-minutes: 10
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pcov
+          coverage: pcov
+          tools: composer:2.9
+      - name: Find the Composer cache
+        id: composer-cache
+        timeout-minutes: 2
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - name: Cache the Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('composer.lock') }}
+      - name: Install from the lock file
+        timeout-minutes: 10
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Run the tests with coverage held at the committed floor
+        timeout-minutes: 20
+        run: composer test:unit
+      - name: Run the mutation tests on the files the pull request changes
+        if: github.event_name == 'pull_request'
+        timeout-minutes: 20
+        run: bash scripts/mutation.sh --changed
+
+  smoke:
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      APP_ENV: production
+      APP_DEBUG: 'false'
+      APP_URL: http://127.0.0.1:8000
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+      SESSION_DRIVER: database
+      DB_CONNECTION: pgsql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 5440
+      DB_DATABASE: laravel
+      DB_USERNAME: laravel
+      DB_PASSWORD: secret
+      SMOKE_BASE_URL: http://127.0.0.1:8000
+    services:
+      database:
+        image: postgres:17
+        env:
+          POSTGRES_USER: laravel
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: laravel
+        ports:
+          - 5440:5432
+        options: >-
+          --health-cmd "pg_isready -U laravel"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - name: Check out the merge of the pull request, with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          fetch-depth: 0
+      - name: Set up PHP
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        timeout-minutes: 10
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql
+          coverage: none
+          tools: composer:2.9
+      - name: Find the Composer cache
+        id: composer-cache
+        timeout-minutes: 2
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - name: Cache the Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('composer.lock') }}
+      - name: Install the production dependencies from the lock file
+        timeout-minutes: 10
+        run: composer install --no-dev --no-interaction --no-progress --prefer-dist --optimize-autoloader
+      - name: Boot the stack with seeded data and the production drivers
+        timeout-minutes: 5
+        run: |
+          APP_KEY="$(php artisan key:generate --show)"
+          echo "APP_KEY=$APP_KEY" >> "$GITHUB_ENV"
+          export APP_KEY
+          php artisan migrate --force --seed
+          nohup php -S 127.0.0.1:8000 -t public public/index.php > server.log 2>&1 &
+          curl -sS --retry 30 --retry-delay 1 --retry-connrefused -o /dev/null "$SMOKE_BASE_URL/en/about"
+      - name: Smoke 1 of 4, the stack runs on the production drivers
+        timeout-minutes: 2
+        run: |
+          php artisan about --json | jq -e '.drivers.cache == "database" and .drivers.queue == "database" and .drivers.database == "pgsql" and .drivers.session == "database"'
+      - name: Smoke 2 of 4, a page answers with its body
+        timeout-minutes: 2
+        run: |
+          body="$(curl -sS --fail-with-body "$SMOKE_BASE_URL/en/about")"
+          echo "$body" | jq -e 'type == "object" and (.title | type == "string") and (.title | length > 0)'
+      - name: Smoke 3 of 4, the API refuses a request with no token
+        timeout-minutes: 2
+        run: |
+          status="$(curl -sS -o response.json -w '%{http_code}' -H 'Accept: application/json' "$SMOKE_BASE_URL/api/v1/notes")"
+          test "$status" = 401
+          jq -e '.message == "Unauthenticated."' response.json
+      - name: Smoke 4 of 4, the rate limit is answered on every route
+        timeout-minutes: 2
+        run: |
+          curl -sS -D headers.txt -o /dev/null "$SMOKE_BASE_URL/en/about"
+          grep -i '^x-ratelimit-limit: ' headers.txt
+
+  scheduled:
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+    services:
+      database:
+        image: postgres:17
+        env:
+          POSTGRES_USER: laravel
+          POSTGRES_PASSWORD: secret
+          POSTGRES_DB: laravel
+        ports:
+          - 5440:5432
+        options: >-
+          --health-cmd "pg_isready -U laravel"
+          --health-interval 5s --health-timeout 5s --health-retries 12
+    steps:
+      - name: Check out the default branch, with full history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        timeout-minutes: 5
+        with:
+          fetch-depth: 0
+      - name: Set up PHP with pcov
+        uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
+        timeout-minutes: 10
+        with:
+          php-version: '8.4'
+          extensions: pdo_pgsql, pcov
+          coverage: pcov
+          tools: composer:2.9
+      - name: Find the Composer cache
+        id: composer-cache
+        timeout-minutes: 2
+        run: echo "dir=$(composer config cache-files-dir)" >> "$GITHUB_OUTPUT"
+      - name: Cache the Composer downloads
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        timeout-minutes: 5
+        with:
+          path: ${{ steps.composer-cache.outputs.dir }}
+          key: composer-${{ hashFiles('composer.lock') }}
+      - name: Install from the lock file
+        timeout-minutes: 10
+        run: composer install --no-interaction --no-progress --prefer-dist
+      - name: Run the full dashboard
+        timeout-minutes: 15
+        run: bash scripts/checks.sh --scheduled
+      - name: Run the mutation tests over the whole tree
+        timeout-minutes: 30
+        run: bash scripts/mutation.sh

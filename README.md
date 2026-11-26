@@ -1,24 +1,132 @@
 # zero-debt-laravel
 
-A Laravel 13 API starter at the end state of the zero-debt kit: strict types, a single pattern per task, every check, ratchet and counter at zero from the first commit.
+A Laravel 13 API starter at the end state of the [zero-debt kit](https://github.com/NiekNijland/zero-debt-kit-laravel): one way per task, a guard in CI for every rule, and every counter at zero from the first commit.
 
-## Stack
+## Why
 
-PHP 8.4, Laravel 13, PostgreSQL 17, Sanctum tokens, spatie/laravel-data DTOs, spatie/laravel-permission, Pest 5, Larastan at level 10, Rector, Pint.
+Green CI does not mean a codebase has a shape. High coverage and PHPStan at a high level still leave three ways to authorize a route and a new pattern with every pull request. This starter ships the structure first, so the first feature is written inside it:
 
-## Run
+- **Architecture tests** decide the one allowed way per task: where a class lives, what it may depend on, how a controller or a test is shaped. Code that does it another way fails the build with a message that says what to do instead.
+- **Ratchets** are counters for everything that can go wrong: suppressions, skips, comments, oversized files, baselines. Every counter starts at zero and may only stay there. Nothing can be added to make a build green.
+- **A pipeline that cannot narrow**: a contract test reads the workflow files and fails a check that skips, a step with no time limit, an unpinned action or a missing code-owner rule.
+
+Anyone, including an agent working unattended, can contribute, and when CI is green the code fits the patterns.
+
+<!-- init:start -->
+## Use it as a template
 
 ```sh
+bash scripts/init.sh --name my-api --owner @your-github-user
+```
+
+The script asks for what you do not give it: the project name, the Composer vendor, the ticket prefix of your commit messages (`NOTICKET` when you have no ticket system), the database image, the base branch and the code owner. It rewrites `composer.json`, `.env.example`, this title, `scripts/kit-config.sh`, `scripts/ci-commit-messages.sh`, `.github/CODEOWNERS`, `renovate.json` and the workflows, refreshes the hash of `composer.lock`, and deletes itself with its test. `--dry-run` prints every change and writes nothing. Commit the result with `[ratchet: script] instantiate the template` in the message: the files it changes are guarded files.
+<!-- init:end -->
+
+## Quick start
+
+```sh
+docker run -d --name starter-pg -e POSTGRES_USER=laravel -e POSTGRES_PASSWORD=secret -e POSTGRES_DB=laravel -p 5440:5432 postgres:17
 composer install
 cp .env.example .env
 php artisan key:generate
 php artisan migrate --seed
+composer test
 ```
 
-## Check
+Set `DB_PORT=5440` in `.env`: it is the port `phpunit.xml` uses, and the one in the command above. Requirements: PHP 8.4 or later, Composer, a PostgreSQL 17 server, `pcov` for the coverage floor, `jq`, and `gitleaks` for the secret scan of the checks.
 
-```sh
-bash scripts/checks.sh
+| Command | What it does |
+| --- | --- |
+| `composer test` | the whole gate: `bash scripts/checks.sh` |
+| `composer test:unit` | Pest in parallel with coverage, then the coverage floor |
+| `composer test:types` | PHPStan at level 10 on source and tests |
+| `composer test:type-coverage` | Pest type coverage at 100 |
+| `composer test:lint` | Pint and Rector, check only |
+| `composer lint` | Rector and Pint, rewriting the tree |
+| `bash scripts/debt-dashboard.sh --final` | every counter against its goal |
+| `bash scripts/ci-ratchets.sh --head` | every ratchet row as it stands |
+
+## What is inside
+
+**The application.** `app/Modules/Notes` (actions, DTOs, enums, a service) and `app/Modules/Localization` (locale and pages), with a flat framework layer: single-action controllers under `app/Http/Controllers/Api/Note`, form requests, a policy, middleware and two providers. The JSON API sits under `/api/v1` behind Sanctum tokens, with permissions from spatie/laravel-permission, DTOs from spatie/laravel-data, `can:` and `throttle:<limiter>` on every route, and localized pages at `/{locale}/{slug}`.
+
+**The tools at their strictest.** PHPStan at level 10 with bleeding edge, Larastan, strict rules, disallowed calls, a dead-code detector and 100% type coverage; Rector with 19 sets and no skip; Pint with the 21 strictness rules; `roave/security-advisories`; Pest 5 with a hermetic base set-up, line coverage held at a committed floor and a mutation floor.
+
+**The guards.** Architecture tests in `tests/Unit/*ArchitectureTest.php` with their detectors in `tests/Support/Architecture`, each with failing examples, passing examples and one case over the real tree:
+
+| Kind | What fails |
+| --- | --- |
+| Layout and class shape | a class outside the folder table of `app/AGENTS.md`, a controller or action that is not `final readonly`, a wrong name |
+| Controllers and requests | a thick controller, inline validation, a response that is no DTO |
+| Authorization and limits | a route without `can:` or `throttle:`, a role name in a check |
+| Models, migrations and data | a model without immutable casts, a foreign key without an index, a missing `down()` |
+| Tests | a spelling other than `it()`, a test in the wrong folder, a shared fixture, a double of an own class |
+| The pipeline | `CiContractArchitectureTest`: a workflow that narrows a check; `CodeOwnersArchitectureTest`: a guard file with no owner |
+| The guides | `DocumentedPathArchitectureTest`: a path in a guide that is gone; `GuideRulesArchitectureTest`: a guide that lost the words of a rule; `OnePatternRubricArchitectureTest`: a row of the one-pattern table missing from the rubric |
+
+**The ratchets, all at zero.** `scripts/ci-ratchets.sh` counts the rows of the kit's start set plus its caps: `analyser-baseline`, `analyser-ignore`, `analyser-level`, `refactor-skip`, `audit-ignore`, `audit-exceptions`, `test-skip`, `test-doubles`, `event-fake-all`, `lint-disable`, `lint-config-off`, `lint-config-ignores`, `lint-baseline`, `type-baseline`, `ts-suppressions`, `frontend-test-skip`, `comments`, `todo`, `ci-skipped-steps`, `strict-types-missing`, `loose-comparisons`, `mutable-dates`, `byte-string-functions`, `queue-bus-fake-all`, `guide-future-tense`, `unused-ignore` and one `cap-<key>` row per key of `scripts/debt-caps.json`. Their counterparts that may only go up are held at their goal: `refactor-sets` at 19, `formatter-rules` at 21, `advisory-block` at 1, `coverage-floor` and `mutation-floor` at their committed numbers. The dashboard (`scripts/debt-dashboard.sh --final`) adds files over 400 lines, open classes, classes with no test of their own, docs past their age limit and the package audit.
+
+**The documents.** `AGENTS.md` (glossary, product areas, which source wins, house rules, the one-pattern table), `app/AGENTS.md`, `tests/AGENTS.md`, `docs/decisions/0001-one-backend-pattern.md`, `docs/review-rubric.md`, `docs/ci.md`, `docs/kit-sync.md` and `docs/guards/ci-contract.md`.
+
+## Layout
+
+```text
+app/Modules/<Domain>/{Actions,Data,Enums,Services,...}   domain code, one module per domain
+app/Http, app/Models, app/Policies, app/Providers        the flat framework layer
+tests/Unit, tests/Feature                                tests that mirror the folders they cover
+tests/Support/Architecture                               the detector classes of the guards
+scripts/                                                 the kit's scripts with this project's config
+docs/                                                    decisions, rubric, CI, kit sync
+.github/workflows                                        kit-checks, kit-sync, kit-canary
 ```
 
-The scripts, the composer scripts and the guides (`app/AGENTS.md`, `tests/AGENTS.md`) hold the rules.
+## Staying in step with the kit
+
+The scripts under `scripts/` are copies of the kit with this project's config block, ratchet rows and task commands. `.zero-debt-kit-version` holds one line, `<owner>/<repository>@<commit hash>`, the kit commit they derive from. A weekly workflow compares the kit's head with the pin and opens a bump pull request that brings the scripts to the kit's version and moves the pin; a nightly canary runs this project's ratchet self-test, rows and dashboard against the kit's newest scripts and reports the drift. A changed script is a guarded file: the commit carries `[ratchet: script] <reason>` and the code owner reviews it. Details and the manual steps: `docs/kit-sync.md`.
+
+## Compared with other strict starter kits
+
+One kit is compared, and only on what its public files say. Source: the repository `nunomaduro/laravel-starter-kit` and the README of `nunomaduro/essentials` on GitHub, read on 2026-11-26.
+
+| | nunomaduro/laravel-starter-kit | this starter |
+| --- | --- | --- |
+| Static analysis | Larastan, `level: max`, bleeding edge (its README says level 9) | Larastan at level 10 with bleeding edge, strict rules, disallowed calls and a dead-code detector |
+| Refactoring | Rector with six prepared sets (dead code, code quality, coding style, type declarations, privatization, early return) and ten Laravel sets, with three skips | the same six prepared sets and ten Laravel sets; no skip is allowed |
+| Formatter | Pint with a `rules` list (`declare_strict_types`, `strict_comparison`, `final_class`, `date_time_immutable` among them) | Pint with the 21 strictness rules of the kit, counted by a ratchet row |
+| Types and coverage | Pest type coverage at 100, line coverage required at exactly 100.0 | Pest type coverage at 100, line coverage held at a committed floor that only goes up, a mutation floor |
+| Runtime defaults | `nunomaduro/essentials`: strict models, auto eager loading, immutable dates, forced HTTPS, a safe console, stray requests prevented, fake sleep | the same switches as calls in one provider, each asserted by a config test |
+| Architecture | `tests/Unit/ArchTest.php` (Pest `arch()`) | `arch()` presets plus guard classes for layout, class shape, controllers, requests, models, migrations, routes and tests, each with failing examples |
+| Counters | the repository root has no `scripts` folder | a ratchet script with its self-test, a dashboard with caps, and a gate that fails when a counter moves |
+| CI | one workflow (`tests.yml`) on `ubuntu-latest`, actions pinned to version tags, running `composer test` | five runs, parts as a matrix, actions pinned by commit sha, time limits on every job and step, a PostgreSQL service, a smoke job, a scheduled run, and a contract test over the workflow files |
+| Code owners | no `CODEOWNERS` file in the repository root or in `.github`, which holds `dependabot.yml`, `skills` and `workflows` | `.github/CODEOWNERS` over every guard file, read by a test |
+| Dependency bot | Dependabot | Renovate with pinned action digests |
+| Frontend | Blade, with sibling repositories for Inertia with React and with Vue | none (see below) |
+| Agent files | `AGENTS.md` of Laravel Boost guidelines, and config folders for several agents | `AGENTS.md` with the one-pattern table, a review rubric, and a guard over the guides |
+
+The two differ in what they start from. The other kit gives a strict skeleton and a runtime package; this starter is the skeleton plus the machinery that keeps it strict while many people change it.
+
+## What is not in v1
+
+- No frontend: no Blade views, no Inertia, no Livewire. The `FRONTEND_*` settings of the kit's scripts are empty and the frontend rows count nothing. The kit's frontend guards, layers and lint rules have no variant in this starter, and the other kit above has Blade, React and Vue repositories.
+- No multi-tenancy, no queue jobs, events, mail or notifications, so the register of stored class names has no subject.
+- No signed-in step in the smoke job: the seed creates permissions and no principal.
+- No container image for the CI jobs: the toolchain comes from `shivammathur/setup-php`, and the kit's skeleton pins an image by digest.
+- Two dashboard rows have no subject in a new project: `model-strictness-violations` has no list of violations to count, and `cap-ci-duration-minutes` reads `UNKNOWN` online for a repository that has no GitHub host.
+
+## Proven and not proven
+
+Proven here, on a developer machine with PHP 8.5.12 and PostgreSQL 17:
+
+- the application tests, the guard group, PHPStan, Rector, Pint, type coverage and the ratchet self-test, through `bash scripts/checks.sh`;
+- every failing example of the CI contract test, and the contract test against a real break of the workflow (a removed time limit, an unpinned action) that was reverted;
+- the smoke commands of the workflow against a local server on the production drivers;
+- the instantiation script on a scratch copy, followed by a green `bash scripts/checks.sh` on the instantiated copy.
+
+Not proven:
+
+- no workflow has run on GitHub: the repository has no remote. The runner, the `setup-php` and `cache` steps, the PostgreSQL service, gitleaks and the branch protection are written from the kit's skeleton and the tools' documentation;
+- the kit sync and the canary have never run, and the doctor of the kit that both read is on the kit's `main` only after its commit is pushed;
+- PHP 8.4, the version of CI and `composer.json`, was not the version of the local runs;
+- the mutation floor was measured with four processes; a different count flaked on the first measurement (`KIT-FINDINGS.md`).
+
+`KIT-FINDINGS.md` lists what building this starter found wrong or missing in the kit.
