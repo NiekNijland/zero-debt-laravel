@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Modules\Notes\Commands\IssueTokenCommand;
 use Illuminate\Support\Facades\Artisan;
 use Tests\Support\Users;
 
@@ -20,4 +21,9 @@ it('fails for an email that no user has', function (): void {
 
     expect($status)->toBe(1)
         ->and(Artisan::output())->toContain('No user has that email.');
+});
+
+it('is registered with the console', function (): void {
+    expect(Artisan::all())->toHaveKey('notes:issue-token')
+        ->and(Artisan::all()['notes:issue-token'])->toBeInstanceOf(IssueTokenCommand::class);
 });
