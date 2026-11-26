@@ -58,7 +58,7 @@ jobs:
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 5
         run: |
-          # TODO: tools/doctor.sh is on the kit's main only once the kit commit that adds it is pushed; until then this step fails with the message below.
+          # TODO: tools/doctor.sh is on the kit's main only once the kit commit that adds it is pushed (the kit's main was at the pinned commit when the starter was published); a kit main that moved without it fails this step with the message below.
           test -f kit-main/tools/doctor.sh || { echo "The kit at kit-main has no tools/doctor.sh: push the kit commit that adds it" >&2; exit 1; }
           status=0
           bash kit-main/tools/doctor.sh --project "$PWD" > sync-report.txt || status=$?
