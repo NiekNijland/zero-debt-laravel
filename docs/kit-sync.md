@@ -29,7 +29,7 @@ A workflow that has only `schedule` and `workflow_dispatch` triggers is register
 
 ## When a kit script changes
 
-1. The bump pull request holds the changed scripts. Every changed script is a guarded file, so the commit carries `[ratchet: script] <reason>`; the sync writes it, a person may reword it.
+1. The bump pull request holds the changed scripts. Every changed script is a guarded file, so the commit carries `[ratchet: script] <reason>`, and one `[ratchet: <row>] <reason>` for each ratchet row the doctor carried, because the gate fails a changed row without its tag (`KIT-FINDINGS.md`, P6-5); the sync writes them all, a person may reword them.
 2. The code owner reviews the pull request and reads the diff of every script line by line (rubric item 2). The author of a bump does not approve it.
 3. The checks of the pull request run on the new scripts, and a row that moved the wrong way fails there. The owner decides per new row: a new ratchet row is a pull request of its own with its cap.
 4. A script that this project edited in its body is reported by the doctor as `body-differs`. Read the diff summary before overwriting it, and put the change into the kit, or into the config block, if it was a need. The ratchet table is the project's too: the doctor lists the rows the kit added, and carries the rows the kit changed since this project took them (the project's row equals an older kit row). A row that differs from the kit's and equals no kit commit's is this project's own edit and stays; compare it with the kit's row when `bash scripts/ci-ratchets.sh --self-test` fails for it.

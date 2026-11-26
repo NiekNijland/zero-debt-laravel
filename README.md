@@ -131,21 +131,24 @@ The two differ in what they start from. The other kit gives a strict skeleton an
 
 Proven on GitHub Actions, on `ubuntu-24.04` with PHP 8.4 and a PostgreSQL 17 service:
 
-- a push to `main`: the four parts of the checks, the tests with the coverage floor, and the smoke job with its signed-in step;
-- a pull request: the four parts with the gate against the base branch, the secret scan, the tests with the mutation run on the changed files, the smoke job and the aggregate job `checks-result`;
+- a push to `main` at kit 8fd4285: the four parts of the checks, the tests with the coverage floor, and the smoke job with its signed-in step;
+- a pull request, in an earlier round on kit 119d889: the four parts with the gate against the base branch, the secret scan, the tests with the mutation run on the changed files, the smoke job and the aggregate job `checks-result`. The jobs of those runs are the ones that ran on the push above; the only change to them since is `DB_HOST: 127.0.0.1` on the jobs that start the database service, and a pull request has not run since;
 - the gate refusing a pull request that raises a cap that stands at 0, and accepting the same file pushed to `main` (`KIT-FINDINGS.md`, P4-1);
-- the scheduled job: the full dashboard with its online rows and the mutation run over the whole tree, started from a throwaway branch;
-- the kit sync (it finds the pin equal to the kit's head and stops) and the canary, started by hand against kit commit 119d889: the canary finds `tools/doctor.sh`, applies the upgrade, puts the task lines back and runs the self-test, the rows, the dashboard and the `static` and `guards` parts with the kit's scripts (it needed `--main` and the kit checkout moved out of the workspace, which the first two runs showed).
+- the scheduled job: the full dashboard with its online rows and the mutation run over the whole tree, started from a throwaway branch (earlier round);
+- the kit sync and the canary, started by hand against kit commit 8fd4285: the sync finds the pin equal to the kit's head and stops; the canary applies the doctor's upgrade without any step that puts task lines back, and runs the ratchet self-test, the rows, the dashboard and the `static` and `guards` parts with the kit's scripts, without `--main`;
+- the bump pull request of the kit sync, from a scratch branch that held the previous scripts and the pin 119d889: the run opened one pull request whose single commit carries `[ratchet: script]` and `[ratchet: frontend-test-skip]`, and whose files equal the upgrade on `main`. The pull request was closed and both branches deleted. Its own checks did not start: a pull request opened with the default token starts no workflow, and no `KIT_SYNC_TOKEN` is set.
 
 Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17:
 
-- `bash scripts/checks.sh`, `composer test:unit` with the coverage floor and `bash scripts/debt-dashboard.sh --final --offline` on a clean clone;
-- every failing example of the CI contract test, and the contract test against a real break of the workflow (a removed time limit, an unpinned action) that was reverted;
+- `bash scripts/checks.sh`, `composer test:unit` with the coverage floor (100%, 154 of 154 lines) and `bash scripts/debt-dashboard.sh --final` in the checkout of this repository, online and offline, both exit 0; in a clone whose origin is not GitHub the online run ends on `ci-duration-minutes` as `UNKNOWN`, as the section above says;
+- the gate and the whole checks run of a pull request, against a scratch origin that held the previous `main`: green with the tags `[ratchet: script]` and `[ratchet: frontend-test-skip]`, and the gate failing the carried row (`redefined, FAILS`) without the second tag;
+- every failing example of the contract tests, and the contract test against a real break of the workflow (a removed time limit, an unpinned action) that was reverted;
 - the instantiation script on a scratch copy, followed by a green `bash scripts/checks.sh` on the instantiated copy.
 
 Not proven:
 
-- the bump pull request of the kit sync has never been opened: it needs a kit commit after the pinned one, and the pin is the kit's head (the doctor's upgrade was applied by hand to reach 119d889, and the sync's task-line step was run on a copy only);
+- the checks of a bump pull request (they need `KIT_SYNC_TOKEN`, or a person who closes and reopens the pull request);
+- a pull request run of the workflows since `DB_HOST` was added to them;
 - the mutation floor was measured with four processes (`MUTATION_PROCESSES` in `scripts/mutation.sh`); a different count flaked on the first measurement, and the floor includes the eight uncovered mutants of the `#[Fillable]` and `#[Hidden]` lines.
 
 `KIT-FINDINGS.md` lists what building this starter found wrong or missing in the kit.
