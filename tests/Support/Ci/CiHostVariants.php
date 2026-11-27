@@ -19,10 +19,11 @@ final class CiHostVariants
     /**
      * @param list<string> $hardened other workflow files the owner has the guard read
      * @param list<string> $auxiliary other workflow files that run the checks script on purpose
+     * @param array<string, list<string>> $secrets the secret names declared per auxiliary workflow file
      */
-    public static function githubGuard(string $databaseImage = 'postgres:17', bool $frontend = true, array $hardened = [], string $backendTestScript = '', array $auxiliary = []): GithubWorkflowGuard
+    public static function githubGuard(string $databaseImage = 'postgres:17', bool $frontend = true, array $hardened = [], string $backendTestScript = '', array $auxiliary = [], array $secrets = []): GithubWorkflowGuard
     {
-        return new GithubWorkflowGuard('', '', 'kit-checks.yml', ['main', 'develop'], 'composer test:unit', $databaseImage, $frontend, 'playwright', hardenedWorkflows: $hardened, backendTestScript: $backendTestScript, auxiliaryWorkflows: $auxiliary);
+        return new GithubWorkflowGuard('', '', 'kit-checks.yml', ['main', 'develop'], 'composer test:unit', $databaseImage, $frontend, 'playwright', hardenedWorkflows: $hardened, backendTestScript: $backendTestScript, auxiliaryWorkflows: $auxiliary, auxiliarySecrets: $secrets);
     }
 
     /**
@@ -121,6 +122,11 @@ final class CiHostVariants
     public static function canaryWorkflow(): string
     {
         return "name: Canary\non:\n  schedule:\n    - cron: '41 4 * * *'\n  workflow_dispatch:\npermissions:\n  contents: read\njobs:\n  canary:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 30\n    steps:\n      - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v7.0.1\n        with:\n          fetch-depth: 0\n      - run: composer install\n      - run: bash scripts/checks.sh --main --part static\n";
+    }
+
+    public static function syncWorkflow(string $on = "  schedule:\n    - cron: '23 4 * * 1'\n  workflow_dispatch:\n", string $secrets = '${{ secrets.KIT_SYNC_TOKEN || github.token }}'): string
+    {
+        return "name: Sync\non:\n" . $on . "permissions:\n  contents: read\njobs:\n  sync:\n    runs-on: ubuntu-24.04\n    timeout-minutes: 20\n    steps:\n      - uses: actions/checkout@aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa # v7.0.1\n        timeout-minutes: 5\n        with:\n          fetch-depth: 0\n          token: " . $secrets . "\n";
     }
 
     public static function deployWorkflow(): string

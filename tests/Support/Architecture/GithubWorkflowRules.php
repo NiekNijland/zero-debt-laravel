@@ -20,9 +20,10 @@ final readonly class GithubWorkflowRules
 
     /**
      * @param array<mixed> $workflow
+     * @param bool $secretsDeclared the owner declared the secrets of this file: AuxiliarySecretRule reads them instead of the generic rule
      * @return list<string>
      */
-    public static function hazards(array $workflow): array
+    public static function hazards(array $workflow, bool $secretsDeclared = false): array
     {
         $triggers = GithubWorkflowReader::triggers($workflow);
         $violations = [];
@@ -35,11 +36,20 @@ final readonly class GithubWorkflowRules
             $violations[] = 'a workflow_run workflow checks out the code of the pull request that triggered it: it runs with secrets';
         }
 
-        if ((array_key_exists('pull_request', $triggers) || array_key_exists('schedule', $triggers)) && self::secretsIn($workflow) !== []) {
+        if (! $secretsDeclared && (array_key_exists('pull_request', $triggers) || array_key_exists('schedule', $triggers)) && self::secretsIn($workflow) !== []) {
             $violations[] = 'a workflow that a pull request or the schedule starts reads a secret (`' . self::secretsIn($workflow)[0] . '`): a same-repository pull request runs its own copy of the file';
         }
 
         return $violations;
+    }
+
+    /**
+     * @param array<mixed> $workflow
+     * @return list<string> the names read through `secrets.<NAME>`, other than the workflow token; `[]` for the indexed form
+     */
+    public static function secretNames(array $workflow): array
+    {
+        return array_values(array_unique(array_map(static fn (string $found): string => str_starts_with($found, 'secrets.') ? mb_substr($found, 8) : '[]', self::secretsIn($workflow))));
     }
 
     /**
