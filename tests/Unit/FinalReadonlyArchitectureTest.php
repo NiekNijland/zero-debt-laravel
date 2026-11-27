@@ -2,6 +2,8 @@
 
 declare(strict_types=1);
 
+use Tests\Support\ModuleNamespaces;
+
 uses()->group('arch');
 
 arch('controllers are final readonly')
@@ -11,7 +13,7 @@ arch('controllers are final readonly')
     ->toBeReadonly();
 
 arch('actions are final readonly')
-    ->expect('App\Modules\*\Actions')
+    ->expect(ModuleNamespaces::of('Actions'))
     ->classes()
     ->toBeFinal()
     ->toBeReadonly();
