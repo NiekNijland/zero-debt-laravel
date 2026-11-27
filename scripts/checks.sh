@@ -188,6 +188,7 @@ if [ -z "$RUN" ]; then
         fi
         BASE="$DEFAULT_BASE_BRANCH"
     fi
+    BASE="${BASE#"$REMOTE"/}"
     export CHECK_BASE="$BASE"
 
     # No remote on a developer's machine (a first local series): the local base branch stands in for REMOTE/BASE (kit-config.sh).

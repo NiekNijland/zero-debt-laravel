@@ -21,6 +21,7 @@ MAIN="${1:-}"
 if [ -z "$MAIN" ]; then
     . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/kit-config.sh"
     BASE="${CHECK_BASE:-$DEFAULT_BASE_BRANCH}"
+    BASE="${BASE#"$REMOTE"/}"
     kit_local_base "$BASE" || {
         echo "Prepush: $KIT_BRANCH_ERROR. FAILS: nothing was checked" >&2
         exit 1

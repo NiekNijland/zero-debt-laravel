@@ -7,7 +7,6 @@
 SOURCE_PATHS="app,bootstrap,config,database,routes,lang"
 TEST_PATHS="tests"
 # The test folders whose tests are written in the backend's test framework: the row test-skip counts there.
-# Empty in a project whose only language is TypeScript: frontend-test-skip counts its skips.
 TEST_SKIP_PATHS="tests"
 FRONTEND_PATHS=""
 # Codemods live in tools/codemods and project scripts written in a source language (scripts/<name>.mjs) are named here: no row counts them.
@@ -74,7 +73,7 @@ test-skip                              max  grep   @TEST_SKIP_PATHS,:(exclude)*.
 test-doubles                           max  grep   @TEST_PATHS,:(exclude)*.md  (^|[^A-Za-z0-9_])(Mockery|m)::(mock|spy|namedMock|instanceMock)[[:space:]]*\(|[A-Za-z]::(shouldReceive|shouldHaveReceived|partialMock|spy)\(|(^|[^\\])\$this->(mock|spy|partialMock)\(|test\(\)->(mock|spy|partialMock)\(|(^|[^A-Za-z0-9_>:$\\])\\?(mock|spy)[[:space:]]*\(|(create(Configured|Partial)?(Mock|Stub)[A-Za-z]*|createTestProxy|getMock[A-Za-z]*|prophesize)\(
 event-fake-all                         max  grep   @TEST_PATHS,:(exclude)*.md  Event::fake(For)?\([[:space:]]*(\[[[:space:]]*\])?[[:space:]]*(\)|$)
 lint-disable                           max  grep   @SOURCE_PATHS,@TEST_PATHS,@FRONTEND_PATHS,:(exclude)*.md  eslint-disable|oxlint-disable|biome-ignore|deno-lint-ignore|istanbul ignore|v8 ignore|c8 ignore|/\*[[:space:]]*eslint[[:space:]]
-lint-config-off                        max  grep   @LINT_CONFIG  ["'](off|warn)["']|["'][^"']+["'][[:space:]]*:[[:space:]]*(\[[[:space:]]*)?[01]([^0-9A-Za-z_.]|$)
+lint-config-off                        max  grep   @LINT_CONFIG  :[[:space:]]*["'](off|warn)["']|["'][^"']+["'][[:space:]]*:[[:space:]]*\[[[:space:]]*["'](off|warn)["']|["'][^"']+["'][[:space:]]*:[[:space:]]*(\[[[:space:]]*)?[01]([^0-9A-Za-z_.]|$)
 lint-config-ignores                    max  block  @LINT_CONFIG  (?:ignores:\s*|globalIgnores\(\s*)\[([^\]]*)\] ["'][^"']+["']
 lint-baseline                          max  json   @LINT_BASELINE  value *.*.count
 type-baseline                          max  grep   @KEYED_BASELINES  ^.
@@ -666,7 +665,8 @@ EXTRA
 
 # The fixture of --self-test: one line per case, "<row>[@<file name>] <expected count> <text>". The text is one line of the file
 # (~NL~ is a line break); the count is what the row must report for that file: 0 for a spelling it must not count. A file name
-# may hold octal escapes (\303\234 is a letter outside ASCII). The cases are the spellings of a PHP backend with a TypeScript
+# may hold octal escapes (\303\234 is a letter outside ASCII); a name that starts with / is a path from the root of the scratch
+# repository, counted with the row's own :(exclude) pathspecs, so a case in an excluded folder must count 0. The cases are the spellings of a PHP backend with a TypeScript
 # frontend: a project that changes an expression changes its cases here, or passes its own file as the second argument.
 selftest_cases() {
     cat <<'CASES'
@@ -781,6 +781,10 @@ lint-disable 1 /* eslint no-console: off */
 lint-disable 0 const eslintConfig = 1;
 lint-config-off 1     "no-console": "off",
 lint-config-off 1     rules: { x: 'warn' },
+lint-config-off 1     'no-console': ['warn', { allow: ['error'] }],
+lint-config-off 1     "no-console": ["off"],
+lint-config-off 0     'no-console': ['error', { allow: ['warn', 'error'] }],
+lint-config-off 0     'no-console': ['error', { allow: ['error', 'warn'] }],
 lint-config-off 0     "no-console": "error",
 lint-config-ignores 2 ignores: ['dist', 'build/**'],
 lint-config-ignores 1 globalIgnores(['a'])
@@ -897,6 +901,7 @@ byte-string-functions 0 $n = $x->strlen(1);
 byte-string-functions 0 $n = Foo::strlen(1);
 byte-string-functions 0 $n = Foo\strlen(1);
 byte-string-functions 0 $n = mb_strlen($s);
+byte-string-functions 0 $n = mb_strlen($s, '8bit');
 guide-future-tense 1 This will change.
 guide-future-tense 1 Until then.
 guide-future-tense 0 A willing reader.
@@ -1096,7 +1101,8 @@ alt_mutants() {
 selftest() {
     local extra="${1:-}" NL cases line row rest want text file n=0 skipped=0 index=0 ran=0
     local name method spec got status dir path covered="" witness member mutated base alt_missing=0 alt_total=0 done_rows=""
-    local -a rows=() wants=() paths=() texts=() methods=() specs=() states=() extras=()
+    local -a rows=() wants=() paths=() texts=() methods=() specs=() states=() extras=() placed=() case_filters=() case_items=()
+    local placed_flag case_paths case_item
     local from_extra=0 tool_skipped=0
     NL=$'\n'
     SELFTEST_FAILED=0
@@ -1137,14 +1143,31 @@ selftest() {
         text="${text//~E~/e}"
         text="${text//~PL~/+}"
         index=$((index + 1))
-        dir="cases/$row/$index"
-        mkdir -p "$dir"
-        printf '%s\n' "$text" > "$dir/$file"
+        placed_flag=0
+        if [ "${file#/}" != "$file" ]; then
+            # A file name with a leading / is a path from the root of the scratch repository: the case is written there (in a folder
+            # a row's :(exclude) pathspec names) and counted with the row's own pathspecs.
+            file="${file#/}"
+            dir="$(dirname "$file")"
+            placed_flag=1
+            if [ -e "$file" ]; then
+                selftest_fail "two cases write /$file: use another name"
+            fi
+            mkdir -p "$dir"
+            printf '%s\n' "$text" > "$file"
+            dir="$file"
+            file=""
+        else
+            dir="cases/$row/$index"
+            mkdir -p "$dir"
+            printf '%s\n' "$text" > "$dir/$file"
+        fi
         printf '%s\n' "$text" >> "$witness/$row.txt"
         rows+=("$row")
         extras+=("$from_extra")
         wants+=("$want")
-        paths+=("$dir/$file")
+        placed+=("$placed_flag")
+        if [ "$placed_flag" -eq 1 ]; then paths+=("$dir"); else paths+=("$dir/$file"); fi
         texts+=("$text")
     done <<< "$cases"
     git add -A
@@ -1166,7 +1189,7 @@ selftest() {
             index=$((index + 1))
             continue
         fi
-        read -r name _ method _ spec <<< "$line"
+        read -r name _ method case_paths spec <<< "$line"
         spec=$(resolve_spec "$spec" -) || {
             selftest_fail "$row: its expression cannot be resolved"
             index=$((index + 1))
@@ -1190,8 +1213,16 @@ selftest() {
         fi
         path="${paths[$index]}"
         [ "$method" != "without" ] || path="$(dirname "$path")"
+        case_filters=()
+        if [ "${placed[$index]}" = "1" ]; then
+            case_paths=$(expand "$case_paths" -) || case_paths=""
+            IFS=, read -ra case_items <<< "$case_paths"
+            for case_item in ${case_items[@]+"${case_items[@]}"}; do
+                [ "${case_item#:}" = "$case_item" ] || case_filters+=("$case_item")
+            done
+        fi
         status=0
-        got=$(count HEAD "$method" "$spec" "$path" 2> /dev/null) || status=$?
+        got=$(count HEAD "$method" "$spec" "$path" ${case_filters[@]+"${case_filters[@]}"} 2> /dev/null) || status=$?
         case "$covered" in *" $row "*) ;; *) covered="$covered $row " ;; esac
         if [ "$status" -eq 4 ]; then
             skipped=$((skipped + 1))
@@ -1204,6 +1235,71 @@ selftest() {
         fi
         index=$((index + 1))
     done
+
+    # The exclude pathspecs of a row are part of what it counts: a spelling in an excluded place must not be counted, and the same
+    # spelling in a counted place must. For every grep row with a ":(exclude)<glob>" in its paths, the first spelling the row counts
+    # is written into a file that the glob names (a * in the glob becomes the row's name; a name without a dot is a folder),
+    # committed, and counted twice: with the row's own pathspec it must be 0, without it 1 or more.
+    local excl_paths excl_item excl_glob excl_target excl_text excl_i excl_last excl_got excl_ctl
+    local -a excl_list=() excl_rows=() excl_places=() excl_specs=() excl_texts=()
+    done_rows=""
+    index=0
+    while [ "$index" -lt "${#rows[@]}" ]; do
+        row="${rows[$index]}"
+        index=$((index + 1))
+        case "$done_rows" in *" $row "*) continue ;; esac
+        done_rows="$done_rows $row "
+        line=$(awk -v row="$row" '$1 == row { print; exit }' <<< "$definitions")
+        [ -n "$line" ] || continue
+        read -r name _ method excl_paths spec <<< "$line"
+        [ "$method" = "grep" ] || continue
+        spec=$(resolve_spec "$spec" -) || continue
+        excl_paths=$(expand "$excl_paths" -) || continue
+        excl_text=""
+        for excl_i in "${!rows[@]}"; do
+            [ "${rows[$excl_i]}" = "$row" ] && [ "${wants[$excl_i]}" != "0" ] || continue
+            excl_text="${texts[$excl_i]}"
+            break
+        done
+        [ -n "$excl_text" ] || continue
+        IFS=, read -ra excl_list <<< "$excl_paths"
+        for excl_item in ${excl_list[@]+"${excl_list[@]}"}; do
+            case "$excl_item" in ':(exclude)'?*) ;; *) continue ;; esac
+            excl_glob="${excl_item#:(exclude)}"
+            case "$excl_glob" in
+                *'*'*) excl_target="${excl_glob//\*/$row}" ;;
+                *)
+                    excl_last="${excl_glob##*/}"
+                    case "$excl_last" in *.*) excl_target="$excl_glob" ;; *) excl_target="${excl_glob%/}/$row.txt" ;; esac
+                    ;;
+            esac
+            mkdir -p "$(dirname "$excl_target")"
+            printf '%s\n' "$excl_text" > "$excl_target"
+            excl_rows+=("$row")
+            excl_places+=("$excl_target|$excl_item")
+            excl_specs+=("$spec")
+            excl_texts+=("$excl_text")
+        done
+    done
+    if [ "${#excl_rows[@]}" -gt 0 ]; then
+        git add -A
+        git -c user.name=selftest -c user.email=selftest@example.test -c commit.gpgsign=false commit -q -m excluded
+        index=0
+        while [ "$index" -lt "${#excl_rows[@]}" ]; do
+            excl_target="${excl_places[$index]%%|*}"
+            excl_item="${excl_places[$index]#*|}"
+            excl_got=$(count HEAD grep "${excl_specs[$index]}" "$excl_target" "$excl_item" 2> /dev/null) || excl_got="error"
+            excl_ctl=$(count HEAD grep "${excl_specs[$index]}" "$excl_target" 2> /dev/null) || excl_ctl="error"
+            ran=$((ran + 1))
+            if [ "$excl_ctl" = "0" ] || [ "$excl_ctl" = "error" ]; then
+                selftest_fail "${excl_rows[$index]}: its spelling is not counted in $excl_target, so $excl_item cannot be tested there: ${excl_texts[$index]}"
+            elif [ "$excl_got" != "0" ]; then
+                selftest_fail "${excl_rows[$index]} counts a spelling in $excl_target, which its pathspec $excl_item should exclude: ${excl_texts[$index]}"
+            fi
+            index=$((index + 1))
+        done
+    fi
+    done_rows=""
 
     # Every alternative of a regex row is exercised: removing it from the expression must change what the row counts on the cases
     # of that row. A misspelt name or a dropped alternative would otherwise leave the row under-counting with a green self-test.

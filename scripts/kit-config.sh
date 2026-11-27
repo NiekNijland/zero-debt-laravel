@@ -23,7 +23,9 @@ DATABASE_IMAGE="postgres:17"
 
 # kit_check_branches: BASE_BRANCH and HEAD_BRANCH are set. Returns 1 with the reason in KIT_BRANCH_ERROR when the base is not a
 # usable branch name; a head branch that is not one is dropped (HEAD_BRANCH="").
+# A base written as REMOTE/<branch> (CHECK_BASE=origin/main) is read as <branch>: the scripts add the remote themselves.
 kit_check_branches() {
+    BASE_BRANCH="${BASE_BRANCH#"$REMOTE"/}"
     case "$BASE_BRANCH" in
         -*)
             KIT_BRANCH_ERROR="the base branch \"$BASE_BRANCH\" starts with a dash"
