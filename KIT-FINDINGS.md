@@ -1,11 +1,15 @@
 # Kit findings
 
-Problems found in the zero-debt kit while building this starter, checked against kit commit b24b2b5 (kit 0.12.x; the starter is pinned to it in `.zero-debt-kit-version`). The kit was not changed by this repository. Each open finding has a reproduction that was run against b24b2b5. The numbers are the ones of earlier revisions of this file (the first run was against cfb4405), so a reference in a commit message still finds its entry.
+Problems found in the zero-debt kit while building this starter, checked against kit commit fb3d34f (kit 0.12.x; the starter is pinned to it in `.zero-debt-kit-version`). The kit was not changed by this repository. Each open finding has a reproduction that was run against fb3d34f. The numbers are the ones of earlier revisions of this file (the first run was against cfb4405), so a reference in a commit message still finds its entry.
 
 ## Open
 
-P8-1. **A database service health check by socket passes during the first-run init of the image.** The skeleton's `pg_isready -U <user>` health command (and a compose healthcheck of the same form) answered "accepting connections" for about a second while the image's temporary init server, which listens on the unix socket only, was running, and then the server restarted. A job that starts at that moment fails every connection ("the database system is starting up" or "server closed the connection unexpectedly"). Repro: `docker run -d --name hc -e POSTGRES_USER=u -e POSTGRES_PASSWORD=p -e POSTGRES_DB=d postgres:17`, then once a second run `docker exec hc pg_isready -U u` next to `docker exec hc pg_isready -h 127.0.0.1 -U u`: the first printed "accepting connections" at second 28 while the second printed "no response" until second 35. The starter uses the TCP form `pg_isready -h 127.0.0.1 -U <user>`; the skeleton should too.
-P8-2. **`.gitattributes` of the Laravel skeleton marks `/.github export-ignore`, which breaks a template.** A zip, `git archive` or `composer create-project` copy then lacks the workflows and the code owners file, which a template script needs. Repro: `git archive HEAD | tar -t | grep -c '^.github/'` prints 0 on a copy of the skeleton. The kit's docs on a template or starter should say to drop that line; the starter did.
+None.
+
+## Resolved in kit fb3d34f
+
+- P8-1. The kit skeletons, the canary and the fixtures use `pg_isready -h 127.0.0.1 -U <user>`. Checked by grepping `ci/github-actions.yml` (five occurrences).
+- P8-2. `reference-project/README.md` says that a skeleton `.gitattributes` marks `/.github export-ignore` and what that breaks. Checked by reading line 33.
 
 ## Resolved in kit b24b2b5
 
