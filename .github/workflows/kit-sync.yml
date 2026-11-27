@@ -67,15 +67,14 @@ jobs:
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 5
         run: bash kit-main/tools/doctor.sh --project "$PWD" --upgrade-plan --apply 2>&1 | tee sync-apply.txt
-      - name: Name the ratchet rows the kit changed, for the tags of the commit
+      - name: Take the tag lines the doctor printed for the ratchet rows it carried
         id: rows
         if: steps.kit.outputs.changed == 'true'
         timeout-minutes: 2
         run: |
-          rows="$(sed -n "s/^Doctor: scripts\/ci-ratchets.sh: ratchet rows the kit changed are the kit's again: //p" sync-apply.txt)"
           {
             echo 'tags<<TAGS'
-            for row in $rows; do echo "[ratchet: $row] the kit changed this row since the pin; the doctor carried the kit's row"; done
+            sed -n 's/^    \(\[ratchet: [^]]*\] .*\)$/\1/p' sync-apply.txt
             echo 'TAGS'
           } >> "$GITHUB_OUTPUT"
       - name: Move the pin
