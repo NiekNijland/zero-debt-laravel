@@ -9,6 +9,7 @@ use Tests\Support\Ci\CiHostExamples;
 use Tests\Support\Ci\CiHostVariants;
 use Tests\Support\Ci\CiRunnerExamples;
 use Tests\Support\Narrow;
+use Tests\Support\RecursiveFiles;
 use Tests\Support\SourceSandbox;
 
 uses()->group('arch');
@@ -219,6 +220,27 @@ it('keeps the workflow directory of the repository within the contract', functio
 
     expect($image)->toStartWith('postgres:')
         ->and($guard->violations())->toBe([]);
+});
+
+it('holds the GitHub guard in ten classes that read no other class of the test support', function (): void {
+    $family = ['GithubWorkflowGuard', 'GithubWorkflowReader', 'GithubWorkflowRules', 'GithubJobRules', 'GithubRunnerRules', 'GithubChecksRules', 'AuxiliarySecretRule', 'CiSafetyGuard', 'ChecksParts', 'DatabaseEngine'];
+    $others = [];
+    $reads = [];
+
+    foreach (RecursiveFiles::in(__DIR__ . '/../Support') as $file) {
+        $name = $file->getBasename('.php');
+
+        if (! in_array($name, $family, true)) {
+            $others[] = $name;
+        } else {
+            $reads[$name] = (string) file_get_contents($file->getPathname());
+        }
+    }
+
+    $mentioned = array_filter($others, static fn (string $other): bool => array_any($reads, static fn (string $text): bool => preg_match('/\b' . $other . '\b/', $text) === 1));
+
+    expect(array_keys($reads))->toEqualCanonicalizing($family)
+        ->and(array_values($mentioned))->toBe([]);
 });
 
 dataset('GitHub runner workflows that get the runner form wrong', [
