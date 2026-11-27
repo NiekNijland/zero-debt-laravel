@@ -18,12 +18,11 @@ final class CiHostVariants
 
     /**
      * @param list<string> $hardened other workflow files the owner has the guard read
-     * @param list<string> $auxiliary other workflow files that run the checks script on purpose
-     * @param array<string, list<string>> $secrets the secret names declared per auxiliary workflow file
+     * @param array<int|string, string|list<string>> $auxiliary other workflow files that run the checks script on purpose, with the secrets a file declares
      */
-    public static function githubGuard(string $databaseImage = 'postgres:17', bool $frontend = true, array $hardened = [], string $backendTestScript = '', array $auxiliary = [], array $secrets = []): GithubWorkflowGuard
+    public static function githubGuard(string $databaseImage = 'postgres:17', bool $frontend = true, array $hardened = [], string $backendTestScript = '', array $auxiliary = []): GithubWorkflowGuard
     {
-        return new GithubWorkflowGuard('', '', 'kit-checks.yml', ['main', 'develop'], 'composer test:unit', $databaseImage, $frontend, 'playwright', hardenedWorkflows: $hardened, backendTestScript: $backendTestScript, auxiliaryWorkflows: $auxiliary, auxiliarySecrets: $secrets);
+        return new GithubWorkflowGuard('', '', 'kit-checks.yml', ['main', 'develop'], 'composer test:unit', $databaseImage, $frontend, 'playwright', hardenedWorkflows: $hardened, backendTestScript: $backendTestScript, auxiliaryWorkflows: $auxiliary);
     }
 
     /**

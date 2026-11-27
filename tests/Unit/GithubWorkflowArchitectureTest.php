@@ -146,7 +146,7 @@ it('reads a second workflow that runs part of the checks script as the kit file 
 });
 
 it('passes an auxiliary workflow that only a schedule or a manual run starts and that reads its declared secret', function (): void {
-    $guard = CiHostVariants::githubGuard(secrets: ['sync.yml' => ['KIT_SYNC_TOKEN']]);
+    $guard = CiHostVariants::githubGuard(auxiliary: ['sync.yml' => ['KIT_SYNC_TOKEN']]);
     $files = ['kit-checks.yml' => CiHostExamples::githubWorkflow(), 'sync.yml' => CiHostVariants::syncWorkflow()];
 
     expect(CiHostVariants::githubViolations('', $guard, $files))->toBe('')
@@ -166,7 +166,7 @@ dataset('auxiliary workflows that read a secret and break the narrow rule', [
 it('fails an auxiliary workflow that reads a secret and is more than a scheduled or manual run', function (Closure $workflow, array $declared, string $reason): void {
     $files = ['kit-checks.yml' => CiHostExamples::githubWorkflow(), 'sync.yml' => Narrow::string($workflow())];
 
-    expect(CiHostVariants::githubViolations('', CiHostVariants::githubGuard(secrets: ['sync.yml' => Narrow::strings($declared)]), $files))->toContain($reason);
+    expect(CiHostVariants::githubViolations('', CiHostVariants::githubGuard(auxiliary: ['sync.yml' => Narrow::strings($declared)]), $files))->toContain($reason);
 })->with('auxiliary workflows that read a secret and break the narrow rule');
 
 it("flags the kit's own file and leaves a pre-existing deploy workflow alone unless the owner names it", function (): void {
@@ -216,7 +216,7 @@ it('keeps the workflow directory of the repository within the contract', functio
     $root = dirname(__DIR__, 2);
     $composer = Narrow::map(json_decode((string) file_get_contents($root . '/composer.json'), true, flags: JSON_THROW_ON_ERROR));
     $image = preg_match('/^DATABASE_IMAGE="([^"]+)"/m', (string) file_get_contents($root . '/scripts/kit-config.sh'), $match) === 1 ? $match[1] : '';
-    $guard = new GithubWorkflowGuard($root . '/.github/workflows', $root . '/scripts/checks.sh', 'kit-checks.yml', ['main'], 'composer test:unit', $image, frontend: false, backendTestScript: implode("\n", Narrow::strings(Narrow::map($composer['scripts'] ?? null)['test:unit'] ?? null)), auxiliaryWorkflows: ['kit-canary.yml'], auxiliarySecrets: ['kit-sync.yml' => ['KIT_SYNC_TOKEN']]);
+    $guard = new GithubWorkflowGuard($root . '/.github/workflows', $root . '/scripts/checks.sh', 'kit-checks.yml', ['main'], 'composer test:unit', $image, frontend: false, backendTestScript: implode("\n", Narrow::strings(Narrow::map($composer['scripts'] ?? null)['test:unit'] ?? null)), auxiliaryWorkflows: ['kit-canary.yml', 'kit-sync.yml' => ['KIT_SYNC_TOKEN']]);
 
     expect($image)->toStartWith('postgres:')
         ->and($guard->violations())->toBe([]);
