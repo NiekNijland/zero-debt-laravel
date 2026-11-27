@@ -1,14 +1,24 @@
 # Kit findings
 
-Problems found in the zero-debt kit while building this starter, checked against kit commit fb3d34f (kit 0.12.x; the starter is pinned to it in `.zero-debt-kit-version`). The kit was not changed by this repository. Each open finding has a reproduction that was run against fb3d34f. The numbers are the ones of earlier revisions of this file (the first run was against cfb4405), so a reference in a commit message still finds its entry.
+Problems found in the zero-debt kit while building this starter, checked against kit commit 46be617 (kit 0.12.x; the starter is pinned to it in `.zero-debt-kit-version`). The kit was not changed by this repository. Each open finding has a reproduction that was run against 46be617. The numbers are the ones of earlier revisions of this file (the first run was against cfb4405), so a reference in a commit message still finds its entry.
 
 ## Open
 
 None.
 
+## Resolved in kit 46be617
+
+Re-verified against 46be617 (the kit's catalog and scripts changed since fb3d34f; the starter followed in the commits of this pin).
+
+- P9-1. One form for dispatching an event. The catalog row "Dispatch an event" prescribes `Event::dispatch(new <X>Event(...))` with no `Dispatchable` trait on the event class; the starter's `EventDispatchGuard`, its test, the guide line of `app/AGENTS.md` and the disallowed-call message of `phpstan.neon` followed (the old form, an event's own `<X>Event::dispatch(...)`, is what the guard fails now). The catalog's note "unverified here: not run on a class without the trait" is checked: in a scratch tree, `vendor/bin/rector process --dry-run` rewrote `OrderPlacedEvent::dispatch(1)` into `event(new OrderPlacedEvent(1))` for a class that uses `Illuminate\Foundation\Events\Dispatchable`, and left `Event::dispatch(new PlainEvent(2))` of a class without the trait alone (`DispatchToHelperFunctionsRector` is the only rule that fired). The starter has no event class, so no application code changed; the real-tree test passes on an empty `Events` namespace and fails on the scratch tree with both messages.
+- P9-2. `CHECK_BASE=origin/main` is read as `main`. Checked with a scratch bare repository at the previous main of this starter as `origin`, a clone of the new branch and `CI=true CHECK_BASE=origin/main bash scripts/checks.sh --part gate` (exit 0, "Ratchets against origin/main"), then the whole `scripts/checks.sh` (exit 0).
+- P9-3. `lint-config-off` counts the severity position only. The doctor listed it as the one row the kit changed, `--apply` carried it, the self-test prints `382 cases run, 0 wrong`, and the gate fails the carried row without its own tag: the same commit with the `[ratchet: lint-config-off]` line removed ends with `lint-config-off ... redefined, FAILS` (the tag lines of P6-5 are used in the commit of the pin).
+- P9-4. The self-test has the exclude-pathspec cases (`<row>@/<path>`); the count in `04-guards.md` (382) equals what the script prints.
+- P9-5. `pg_isready -h 127.0.0.1 -U <user>` is in four lines of `ci/github-actions.yml` (the earlier entry P8-1 said five occurrences; the lines are four, the form is the same everywhere).
+
 ## Resolved in kit fb3d34f
 
-- P8-1. The kit skeletons, the canary and the fixtures use `pg_isready -h 127.0.0.1 -U <user>`. Checked by grepping `ci/github-actions.yml` (five occurrences).
+- P8-1. The kit skeletons, the canary and the fixtures use `pg_isready -h 127.0.0.1 -U <user>`. Checked by grepping `ci/github-actions.yml`.
 - P8-2. `reference-project/README.md` says that a skeleton `.gitattributes` marks `/.github export-ignore` and what that breaks. Checked by reading line 33.
 
 ## Resolved in kit b24b2b5
