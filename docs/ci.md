@@ -57,3 +57,4 @@ The smoke job migrates and seeds a PostgreSQL 17 database, starts the built-in P
 ## Not applicable here
 
 The starter has no frontend, so two points of the kit's contract have no subject: the type-aware lint cache and a browser in the smoke run. The `frontend-tests` job of the kit's skeleton is left out.
+
