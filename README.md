@@ -135,12 +135,12 @@ The two differ in what they start from. The other kit gives a strict skeleton an
 
 Proven on GitHub Actions, on `ubuntu-24.04` with PHP 8.4 and a PostgreSQL 17 service:
 
-- a push to `main` at kit 8fd4285: the four parts of the checks, the tests with the coverage floor, and the smoke job with its signed-in step;
+- a push to `main` at kit e48979c (the pin of the run): the four parts of the checks, the tests with the coverage floor, and the smoke job with its signed-in step, all green; the sync workflow and its secret declaration were part of the guard that run read;
 - a pull request, in an earlier round on kit 119d889: the four parts with the gate against the base branch, the secret scan, the tests with the mutation run on the changed files, the smoke job and the aggregate job `checks-result`. The jobs of those runs are the ones that ran on the push above; the only change to them since is `DB_HOST: 127.0.0.1` on the jobs that start the database service, and a pull request has not run since;
 - the gate refusing a pull request that raises a cap that stands at 0, and accepting the same file pushed to `main` (`KIT-FINDINGS.md`, P4-1);
 - the scheduled job: the full dashboard with its online rows and the mutation run over the whole tree, started from a throwaway branch (earlier round);
-- the kit sync and the canary, started by hand against kit commit 8fd4285: the sync finds the pin equal to the kit's head and stops; the canary applies the doctor's upgrade without any step that puts task lines back, and runs the ratchet self-test, the rows, the dashboard and the `static` and `guards` parts with the kit's scripts, without `--main`;
-- the bump pull request of the kit sync, from a scratch branch that held the previous scripts and the pin 119d889: the run opened one pull request whose single commit carries `[ratchet: script]` and `[ratchet: frontend-test-skip]`, and whose files equal the upgrade on `main`. The pull request was closed and both branches deleted. Its own checks did not run: the run that appeared for it failed at once with no job ("workflow file issue"), which is how GitHub shows a pull request opened with the workflow token, and no `KIT_SYNC_TOKEN` is set.
+- the kit sync and the canary, started by hand against kit commit e48979c: the sync finds the pin equal to the kit's head and stops; the canary applies the doctor's upgrade without any step that puts task lines back, and runs the ratchet self-test, the rows, the dashboard and the `static` and `guards` parts with the kit's scripts, without `--main`;
+- the bump pull request of the kit sync, in an earlier round (kit 119d889), from a scratch branch that held the previous scripts and the pin 119d889: the run opened one pull request whose single commit carries `[ratchet: script]` and `[ratchet: frontend-test-skip]`, and whose files equal the upgrade on `main`. The pull request was closed and both branches deleted. Its own checks did not run: the run that appeared for it failed at once with no job ("workflow file issue"), which is how GitHub shows a pull request opened with the workflow token, and no `KIT_SYNC_TOKEN` is set.
 
 Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17, at kit commit e48979c:
 
@@ -151,6 +151,7 @@ Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17, at kit commit e
 
 Not proven:
 
+- the bump step of the kit sync since it takes the tag lines that the doctor prints (kit 0.12.0): only the `sed` over the doctor's output of a local `--apply` was run; the bump run above stopped at the pin comparison, and the bump pull request of the earlier round used the lines the workflow wrote itself;
 - the checks of a bump pull request (they need `KIT_SYNC_TOKEN`, or a person who closes and reopens the pull request);
 - a pull request run of the workflows since `DB_HOST` was added to them;
 - the mutation floor was measured with four processes (`MUTATION_PROCESSES` in `scripts/mutation.sh`); a different count flaked on the first measurement, and the floor includes the eight uncovered mutants of the `#[Fillable]` and `#[Hidden]` lines.
