@@ -61,7 +61,7 @@ parameters:
             message: 'translate a key of lang/ with __()'
         -
             function: 'event()'
-            message: 'dispatch an event of the application with XEvent::dispatch(...), and an event that is built earlier or comes from a vendor with Event::dispatch($event)'
+            message: 'dispatch an event with Event::dispatch(new XEvent(...)), the event built at the call'
         -
             function: 'json_decode()'
             message: 'decode with the flag JSON_THROW_ON_ERROR'

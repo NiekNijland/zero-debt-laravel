@@ -6,18 +6,19 @@ namespace Tests\Support\Architecture;
 
 use Illuminate\Contracts\Events\Dispatcher as DispatcherContract;
 use Illuminate\Events\Dispatcher;
-use Illuminate\Support\Facades\Event;
+use Illuminate\Foundation\Events\Dispatchable;
 use PhpParser\Node;
 use PhpParser\Node\Expr\MethodCall;
 use PhpParser\Node\Expr\New_;
 use PhpParser\Node\Expr\StaticCall;
 use PhpParser\Node\Identifier;
 use PhpParser\Node\Name;
+use PhpParser\Node\Stmt\Class_;
 use PhpParser\NodeFinder;
 
 final readonly class EventDispatchGuard
 {
-    private const array EVENT_FACADES = ['Event', Event::class];
+    private const string DISPATCHABLE = Dispatchable::class;
 
     private const array DISPATCHERS = [DispatcherContract::class, Dispatcher::class];
 
@@ -53,42 +54,66 @@ final readonly class EventDispatchGuard
         $dispatchers = TypedReceivers::in($statements, self::DISPATCHERS, ['events']);
         $violations = [];
 
-        foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof StaticCall || $node instanceof MethodCall) as $call) {
-            $written = match (true) {
-                $call instanceof StaticCall => $this->facadeDispatch($call),
-                $call instanceof MethodCall => $this->dispatcherDispatch($call, $dispatchers),
+        foreach (new NodeFinder()->find($statements, static fn (Node $node): bool => $node instanceof StaticCall || $node instanceof MethodCall || $node instanceof Class_) as $node) {
+            $violation = match (true) {
+                $node instanceof Class_ => $this->dispatchableClass($node),
+                $node instanceof StaticCall => $this->staticDispatch($node),
+                $node instanceof MethodCall => $this->dispatcherDispatch($node, $dispatchers),
                 default => null,
             };
 
-            if ($written === null) {
-                continue;
+            if ($violation !== null) {
+                $violations[] = $node->getStartLine() . ': ' . $violation;
             }
-
-            $event = ($call->getArgs()[0] ?? null)?->value;
-
-            if (! $event instanceof New_ || ! $event->class instanceof Name || ! str_starts_with(mb_ltrim($event->class->toString(), '\\'), 'App\\')) {
-                continue;
-            }
-
-            $name = $event->class->getLast();
-            $violations[] = $call->getStartLine() . ': ' . $written . '(new ' . $name . '(...)) builds an event of the application to hand it to the dispatcher: write '
-                . $name . '::dispatch(...) with the same arguments (the event uses Illuminate\Foundation\Events\Dispatchable)';
         }
 
         return $violations;
     }
 
-    private function facadeDispatch(StaticCall $call): ?string
+    private function dispatchableClass(Class_ $class): ?string
     {
-        $onFacade = $call->class instanceof Name && in_array(mb_ltrim($call->class->toString(), '\\'), self::EVENT_FACADES, true);
+        foreach ($class->getTraitUses() as $use) {
+            foreach ($use->traits as $trait) {
+                if (mb_ltrim($trait->toString(), '\\') === self::DISPATCHABLE) {
+                    return 'a class uses ' . self::DISPATCHABLE . ', and the refactoring set rewrites X::dispatch(...) of such a class into the banned event() helper: remove the trait and dispatch with Event::dispatch(new <X>Event(...))';
+                }
+            }
+        }
 
-        return $onFacade && $call->name instanceof Identifier && $call->name->toLowerString() === 'dispatch' ? 'Event::dispatch' : null;
+        foreach ($class->getMethods() as $method) {
+            if ($method->isStatic() && $method->name->toLowerString() === 'dispatch' && $class->namespacedName instanceof Name && $this->isEvent($class->namespacedName->toString())) {
+                return 'an event class declares its own dispatch(): remove it and dispatch with Event::dispatch(new <X>Event(...))';
+            }
+        }
+
+        return null;
+    }
+
+    private function staticDispatch(StaticCall $call): ?string
+    {
+        if (! $call->class instanceof Name || ! $call->name instanceof Identifier || $call->name->toLowerString() !== 'dispatch') {
+            return null;
+        }
+
+        $class = mb_ltrim($call->class->toString(), '\\');
+
+        return $this->isEvent($class)
+            ? $call->class->getLast() . '::dispatch(...) calls the dispatch() of an event class: write Event::dispatch(new ' . $call->class->getLast() . '(...)) with the same arguments (the event has no Dispatchable trait)'
+            : null;
+    }
+
+    private function isEvent(string $class): bool
+    {
+        return str_starts_with($class, 'App\\') && (str_contains($class, '\\Events\\') || str_ends_with($class, 'Event'));
     }
 
     private function dispatcherDispatch(MethodCall $call, TypedReceivers $dispatchers): ?string
     {
         $dispatches = $call->name instanceof Identifier && $call->name->toLowerString() === 'dispatch';
+        $event = ($call->getArgs()[0] ?? null)?->value;
 
-        return $dispatches && $dispatchers->holds($call->var) ? 'the dispatcher' : null;
+        return $dispatches && $dispatchers->holds($call->var) && $event instanceof New_ && $event->class instanceof Name && $this->isEvent(mb_ltrim($event->class->toString(), '\\'))
+            ? 'the dispatcher(new ' . $event->class->getLast() . '(...)) is no facade call: write Event::dispatch(new ' . $event->class->getLast() . '(...))'
+            : null;
     }
 }
