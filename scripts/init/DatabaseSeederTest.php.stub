@@ -1,0 +1,12 @@
+<?php
+
+declare(strict_types=1);
+
+use App\Models\User;
+use Database\Seeders\DatabaseSeeder;
+
+it('seeds nothing until the project adds a seeder', function (): void {
+    $this->seed(DatabaseSeeder::class);
+
+    expect(User::query()->count())->toBe(0);
+});

@@ -273,27 +273,27 @@ jobs:
           APP_ENV=local php artisan db:seed --class=DemoUserSeeder --force
           nohup php -S 127.0.0.1:8000 -t public public/index.php > server.log 2>&1 &
           curl -sS --retry 30 --retry-delay 1 --retry-connrefused -o /dev/null "$SMOKE_BASE_URL/en/about"
-      - name: Smoke 1 of 5, the stack runs on the production drivers
+      - name: Smoke, the stack runs on the production drivers
         timeout-minutes: 2
         run: |
           php artisan about --json | jq -e '.drivers.cache == "database" and .drivers.queue == "database" and .drivers.database == "pgsql" and .drivers.session == "database"'
-      - name: Smoke 2 of 5, a page answers with its body
+      - name: Smoke, a page answers with its body
         timeout-minutes: 2
         run: |
           body="$(curl -sS --fail-with-body "$SMOKE_BASE_URL/en/about")"
           echo "$body" | jq -e 'type == "object" and (.title | type == "string") and (.title | length > 0)'
-      - name: Smoke 3 of 5, the API refuses a request with no token
+      - name: Smoke, the API refuses a request with no token
         timeout-minutes: 2
         run: |
           status="$(curl -sS -o response.json -w '%{http_code}' -H 'Accept: application/json' "$SMOKE_BASE_URL/api/v1/notes")"
           test "$status" = 401
           jq -e '.message == "Unauthenticated."' response.json
-      - name: Smoke 4 of 5, the rate limit is answered on every route
+      - name: Smoke, the rate limit is answered on every route
         timeout-minutes: 2
         run: |
           curl -sS -D headers.txt -o /dev/null "$SMOKE_BASE_URL/en/about"
           grep -i '^x-ratelimit-limit: ' headers.txt
-      - name: Smoke 5 of 5, the seeded user signs in with a token, writes a note and reads it back
+      - name: Smoke, the seeded user signs in with a token, writes a note and reads it back
         timeout-minutes: 2
         run: |
           token="$(php artisan notes:issue-token demo@example.test --name=smoke)"

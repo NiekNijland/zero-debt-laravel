@@ -20,7 +20,7 @@ Domain code lives in one module per domain, `app/Modules/<Domain>`, using only t
 
 | Folder | Holds | Name |
 | --- | --- | --- |
-| `Actions` | one change of state: `final readonly`, dependencies in the constructor, one public `handle()` | verb and noun, never an `Action` suffix: `CreateNote` |
+| `Actions` | one change of state: `final readonly`, dependencies in the constructor, one public `handle()` | verb and noun, never an `Action` suffix: `CreateOrder` |
 | `Services` | reads that several callers share, and clients of an external system | `<X>Service`, `<X>Client` |
 | `Data` | DTOs: request and response shapes of the API | `<X>Data` |
 | `ValueObjects` | every other domain value, `final readonly` | noun |

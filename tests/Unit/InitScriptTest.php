@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Symfony\Component\Process\Process;
 use Tests\Support\Narrow;
+use Tests\Support\RecursiveFiles;
 use Tests\Support\SourceSandbox;
 
 $files = ['composer.json', 'composer.lock', '.env.example', 'compose.yaml', 'README.md', 'scripts/kit-config.sh', 'scripts/ci-commit-messages.sh', '.github/CODEOWNERS', 'renovate.json', '.github/workflows/kit-checks.yml', '.github/workflows/kit-sync.yml', 'scripts/init.sh'];
@@ -18,6 +19,25 @@ $sandbox = static function (int $composerStatus = 0) use ($files): string {
 
     $copy['tests/Unit/InitScriptTest.php'] = "<?php\n";
     $copy['bin/composer'] = "#!/usr/bin/env bash\necho \"\$@\" >> \"\$(dirname \"\$0\")/composer.log\"\nexit " . $composerStatus . "\n";
+    $path = SourceSandbox::create($copy);
+    chmod($path . '/bin/composer', 0755);
+
+    return $path;
+};
+
+$template = static function (): string {
+    $root = dirname(__DIR__, 2);
+    $copy = [];
+
+    foreach (RecursiveFiles::in($root) as $entry) {
+        $path = mb_substr($entry->getPathname(), mb_strlen($root) + 1);
+
+        if (preg_match('#^(vendor/|node_modules/|storage/|\.git/|\.phpunit\.cache/|bootstrap/cache/|coverage\.xml$|\.env$)#', $path) !== 1) {
+            $copy[$path] = (string) file_get_contents($entry->getPathname());
+        }
+    }
+
+    $copy['bin/composer'] = "#!/usr/bin/env bash\necho \"\$@\" >> \"\$(dirname \"\$0\")/composer.log\"\nexit 0\n";
     $path = SourceSandbox::create($copy);
     chmod($path . '/bin/composer', 0755);
 
@@ -69,6 +89,7 @@ it('prints every change on a dry run and writes nothing', function () use ($sand
     try {
         $process = $init($root, '--dry-run', ...$arguments);
 
+        expect($process->getErrorOutput())->toBe('');
         expect($process->getExitCode())->toBe(0)
             ->and($process->getOutput())->toContain('would set  composer.json: name acme/acme-api')
             ->and($process->getOutput())->toContain('would set  scripts/kit-config.sh: DEFAULT_BASE_BRANCH=develop, DATABASE_IMAGE=postgres:18')
@@ -150,6 +171,63 @@ it('is run again with the same arguments after it stopped half way', function ()
             ->and($edited)->toContain('DATABASE_IMAGE="postgres:18"')
             ->and($second->getExitCode())->toBe(0)
             ->and((string) file_get_contents($root . '/scripts/kit-config.sh'))->toBe($edited);
+    } finally {
+        SourceSandbox::remove($root);
+    }
+});
+
+it('removes the demo module Notes and every reference to it, so the project starts empty', function () use ($template, $init, $arguments): void {
+    $root = $template();
+
+    try {
+        $process = $init($root, ...$arguments);
+        $remaining = [];
+
+        foreach (RecursiveFiles::in($root) as $entry) {
+            $remaining[mb_substr($entry->getPathname(), mb_strlen($root) + 1)] = (string) file_get_contents($entry->getPathname());
+        }
+
+        $leftovers = array_keys(array_filter(
+            $remaining,
+            static fn (string $contents, string $path): bool => $path !== 'KIT-FINDINGS.md' && preg_match('#App\\\\Modules\\\\Notes|App\\\\Models\\\\Note([^A-Za-z]|$)|NotePermission|NoteStatus|NotePolicy|NoteFactory|notes:issue-token|DemoUserSeeder|api/v1/notes|app/Modules/Notes|Api/Note/|notes\.(index|store|show|update|destroy)#', $contents) === 1,
+            ARRAY_FILTER_USE_BOTH,
+        ));
+        $gone = ['app/Modules/Notes', 'app/Http/Controllers/Api', 'app/Http/Requests/Api', 'app/Policies/NotePolicy.php', 'app/Http/Requests/ApiRequest.php', 'tests/Unit/ApiRequestArchitectureTest.php', 'tests/Feature/Http/Requests/ApiRequestTest.php', 'app/Models/Note.php', 'config/notes.php', 'database/factories/NoteFactory.php', 'database/seeders/DemoUserSeeder.php', 'database/migrations/2026_11_26_140000_create_notes_table.php', 'tests/Feature/Modules/Notes', 'tests/Unit/Modules/Notes', 'tests/Feature/Policies', 'tests/Feature/Models/NoteTest.php', 'scripts/init', 'scripts/init.sh'];
+
+        expect($process->getExitCode())->toBe(0)
+            ->and(array_values(array_filter($gone, static fn (string $path): bool => file_exists($root . '/' . $path))))->toBe([])
+            ->and($leftovers)->toBe([])
+            ->and($remaining['routes/api.php'])->toBe("<?php\n\ndeclare(strict_types=1);\n")
+            ->and($remaining['database/seeders/DatabaseSeeder.php'])->not->toContain('Notes')
+            ->and($remaining['tests/Feature/Database/Seeders/DatabaseSeederTest.php'])->toContain('seeds nothing')
+            ->and($remaining['bootstrap/app.php'])->not->toContain('Commands')
+            ->and($remaining['.github/workflows/kit-checks.yml'])->toContain('Smoke, a page answers with its body')
+            ->and($remaining['.github/workflows/kit-checks.yml'])->not->toContain('Smoke, the API refuses')
+            ->and($remaining['.github/workflows/kit-checks.yml'])->toContain('  scheduled:')
+            ->and($remaining['app/AGENTS.md'])->toContain('| `Show` |')
+            ->and($remaining['app/AGENTS.md'])->not->toContain('| `Store` |')
+            ->and($remaining['AGENTS.md'])->toContain('| Route | ')
+            ->and($remaining['README.md'])->not->toContain('notes:start')
+            ->and(array_keys(array_filter($remaining, static fn (string $contents, string $path): bool => str_ends_with($path, '.gitkeep'), ARRAY_FILTER_USE_BOTH)))->toEqualCanonicalizing(['app/Http/Requests/.gitkeep', 'app/Policies/.gitkeep'])
+            ->and(is_file($root . '/app/Modules/Localization/Services/PageService.php'))->toBeTrue()
+            ->and(is_file($root . '/tests/Support/Users.php'))->toBeTrue();
+    } finally {
+        SourceSandbox::remove($root);
+    }
+});
+
+it('lists the demo module in a dry run and removes nothing', function () use ($template, $init, $arguments): void {
+    $root = $template();
+
+    try {
+        $process = $init($root, '--dry-run', ...$arguments);
+
+        expect($process->getExitCode())->toBe(0)
+            ->and($process->getOutput())->toContain('would drop app/Modules/Notes')
+            ->and($process->getOutput())->toContain('would drop database/migrations/2026_11_26_140000_create_notes_table.php')
+            ->and($process->getOutput())->toContain('would set  routes/api.php')
+            ->and(is_dir($root . '/app/Modules/Notes'))->toBeTrue()
+            ->and(is_file($root . '/scripts/init.sh'))->toBeTrue();
     } finally {
         SourceSandbox::remove($root);
     }

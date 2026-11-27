@@ -27,7 +27,7 @@ Anyone, including an agent working unattended, can contribute, and when CI is gr
 bash scripts/init.sh --name my-api --owner @your-github-user
 ```
 
-The script asks for what you do not give it: the project name, the Composer vendor, the ticket prefix of your commit messages (`NOTICKET` when you have no ticket system), the database image, the base branch and the code owner. It rewrites `composer.json`, `.env.example`, this title, `scripts/kit-config.sh`, `scripts/ci-commit-messages.sh`, `.github/CODEOWNERS`, `renovate.json` and the workflows, refreshes the hash of `composer.lock`, and deletes itself with its test. `--dry-run` prints every change and writes nothing. Commit the result with `[ratchet: script] instantiate the template` in the message: the files it changes are guarded files.
+The script asks for what you do not give it: the project name, the Composer vendor, the ticket prefix of your commit messages (`NOTICKET` when you have no ticket system), the database image, the base branch and the code owner. It rewrites `composer.json`, `.env.example`, this title, `scripts/kit-config.sh`, `scripts/ci-commit-messages.sh`, `.github/CODEOWNERS`, `renovate.json` and the workflows, removes the demo module Notes with its routes, migration, factory, seeder, command, tests and the lines of the guides and the smoke job that name it (so the project starts with no domain, no route and no permission, and every guard and the coverage floor of 100 hold on that empty tree), refreshes the hash of `composer.lock`, and deletes itself with its test. `--dry-run` prints every change and writes nothing. Commit the result with `[ratchet: script] instantiate the template` in the message: the files it changes are guarded files.
 <!-- init:end -->
 
 ## Quick start
@@ -41,13 +41,17 @@ php artisan migrate --seed
 composer test
 ```
 
-`compose.yaml` starts PostgreSQL 17 with the test credentials of `.env.example` on `127.0.0.1:5432`, the port that `phpunit.xml`, `.env.example` and the CI services use. The seed creates the permissions and a demo user, `demo@example.test`, with a random password that is never printed; there is no login route, so sign in with a token:
+`compose.yaml` starts PostgreSQL 17 with the test credentials of `.env.example` on `127.0.0.1:5432`, the port that `phpunit.xml`, `.env.example` and the CI services use.
+
+<!-- notes:start -->
+The seed creates the permissions and a demo user, `demo@example.test`, with a random password that is never printed; there is no login route, so sign in with a token:
 
 ```sh
 php artisan serve
 TOKEN="$(php artisan notes:issue-token demo@example.test)"
 curl -H "Authorization: Bearer $TOKEN" -H 'Accept: application/json' http://localhost:8000/api/v1/notes
 ```
+<!-- notes:end -->
 
 Port 5432 taken? Set `DB_PORT=5433` in `.env`: `docker compose` and the application read it. The tests pin their own database settings in `phpunit.xml` and never read `.env`, so run them as `DB_PORT=5433 composer test`.
 
