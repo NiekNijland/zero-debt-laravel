@@ -6,6 +6,10 @@
 
 A Laravel 13 API starter at the end state of the [zero-debt kit](https://github.com/NiekNijland/zero-debt-kit-laravel): one way per task, a guard in CI for every rule, and every counter at zero from the first commit.
 
+## The kit's reference implementation
+
+This repository is the worked example of the kit: its `reference-project/` folder is a pointer to this starter, and where the kit says "the reference" it means the file at that path here. It is one small application (a JSON API for notes with localized pages on PostgreSQL), built by following the kit step by step, and everything in it runs under its own `scripts/checks.sh`. It is pinned to one kit commit (`.zero-debt-kit-version`), so it is usually a few steps behind the kit's `main`; where the two differ, the kit wins, and `KIT-FINDINGS.md` lists what building this starter found wrong or missing in the kit. It does not cover a multi-tenant application, a frontend, a CI host other than GitHub, queued jobs or a register of stored class names; the kit still prescribes those and lists the missing variants in its `docs/starter-variants.md`. Copy a guard together with its detector classes and its thin test; the GitHub workflow guard, for example, is self-contained in ten classes of `tests/Support/Architecture` (`GithubWorkflowGuard`, `GithubWorkflowReader`, `GithubWorkflowRules`, `GithubJobRules`, `GithubRunnerRules`, `GithubChecksRules`, `AuxiliarySecretRule`, `CiSafetyGuard`, `ChecksParts` and `DatabaseEngine`), and needs neither the shared source reader nor a guard for another CI host.
+
 ## Why
 
 Green CI does not mean a codebase has a shape. High coverage and PHPStan at a high level still leave three ways to authorize a route and a new pattern with every pull request. This starter ships the structure first, so the first feature is written inside it:
