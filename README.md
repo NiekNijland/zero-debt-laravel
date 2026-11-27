@@ -142,12 +142,12 @@ Proven on GitHub Actions, on `ubuntu-24.04` with PHP 8.4 and a PostgreSQL 17 ser
 - the kit sync and the canary, started by hand against kit commit 8fd4285: the sync finds the pin equal to the kit's head and stops; the canary applies the doctor's upgrade without any step that puts task lines back, and runs the ratchet self-test, the rows, the dashboard and the `static` and `guards` parts with the kit's scripts, without `--main`;
 - the bump pull request of the kit sync, from a scratch branch that held the previous scripts and the pin 119d889: the run opened one pull request whose single commit carries `[ratchet: script]` and `[ratchet: frontend-test-skip]`, and whose files equal the upgrade on `main`. The pull request was closed and both branches deleted. Its own checks did not run: the run that appeared for it failed at once with no job ("workflow file issue"), which is how GitHub shows a pull request opened with the workflow token, and no `KIT_SYNC_TOKEN` is set.
 
-Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17:
+Proven on a developer machine with PHP 8.5.12 and PostgreSQL 17, at kit commit e48979c:
 
-- `bash scripts/checks.sh`, `composer test:unit` with the coverage floor (100%, 154 of 154 lines) and `bash scripts/debt-dashboard.sh --final` in the checkout of this repository, online and offline, both exit 0; in a clone whose origin is not GitHub the online run ends on `ci-duration-minutes` as `UNKNOWN`, as the section above says;
-- the gate and the whole checks run of a pull request, against a scratch origin that held the previous `main`: green with the tags `[ratchet: script]` and `[ratchet: frontend-test-skip]`, and the gate failing the carried row (`redefined, FAILS`) without the second tag;
-- every failing example of the contract tests, and the contract test against a real break of the workflow (a removed time limit, an unpinned action) that was reverted;
-- the instantiation script on a scratch copy, followed by a green `bash scripts/checks.sh` on the instantiated copy.
+- `bash scripts/checks.sh` in a clean clone of this repository, `composer test:unit` with the coverage floor (100%, 154 of 154 lines, 1473 tests) and `bash scripts/debt-dashboard.sh --final` in the checkout, online and offline, both exit 0 (64 rows; offline skips 6); in a clone whose origin is not GitHub the online run ends on `ci-duration-minutes` as `UNKNOWN`, as the section above says;
+- the whole checks run of a pull request, against a scratch origin that held the previous `main`: the gate refused the changed workflow without `[ratchet: script]` and the run was green with the tag. The kit's upgrade changed no script this round (the doctor reports `matches kit v0.12.0`), so no carried ratchet row was exercised; an earlier round on kit 119d889 carried one (`[ratchet: frontend-test-skip]`) and the gate failed it (`redefined, FAILS`) without its own tag;
+- every failing example of the contract tests, the guard over the sync workflow's secret (a `pull_request`, `push` or `workflow_run` trigger, an undeclared secret, the indexed form, a declared secret that is not read), and the contract test against a real break of the workflow (a removed time limit, an unpinned action) that was reverted;
+- the instantiation script on a scratch copy, followed by a green `bash scripts/checks.sh` on the instantiated copy (with `COMPOSER_IGNORE_PLATFORM_REQS=php` where the local PHP is newer than the advisory package allows).
 
 Not proven:
 
