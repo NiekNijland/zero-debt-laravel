@@ -23,7 +23,6 @@ it('runs in utc', function (): void {
 it('holds typed numbers for the limits', function (): void {
     expect(Config::integer('rate-limits.read'))->toBeGreaterThan(0)
         ->and(Config::integer('rate-limits.write'))->toBeGreaterThan(0)
-        ->and(Config::integer('notes.max_per_page'))->toBeGreaterThanOrEqual(Config::integer('notes.per_page'))
         ->and(Config::integer('sanctum.expiration'))->toBeGreaterThan(0);
 });
 

@@ -6,6 +6,7 @@ namespace Tests\Support\Feature\Http;
 
 use Closure;
 use Illuminate\Contracts\Routing\UrlRoutable;
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Routing\Route as RoutingRoute;
 use ReflectionNamedType;
@@ -42,6 +43,25 @@ final class ObjectLevelAccessHelpers
         }
 
         return $parameters;
+    }
+
+    /**
+     * @param list<RoutingRoute> $routes
+     * @return array<class-string, Closure(): Model>
+     */
+    public static function factories(array $routes): array
+    {
+        $factories = [];
+
+        foreach ($routes as $route) {
+            foreach (self::recordParameters($route) as $class) {
+                if (is_a($class, Model::class, true) && class_exists(Factory::resolveFactoryName($class))) {
+                    $factories[$class] = static fn (): Model => Factory::factoryForModel($class)->createOne();
+                }
+            }
+        }
+
+        return $factories;
     }
 
     /**

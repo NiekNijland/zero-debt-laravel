@@ -23,9 +23,9 @@ final class ApplicationRoutes
     /**
      * @param list<string> $methods
      */
-    public static function forController(array $methods, string $uri, string $controller): RoutingRoute
+    public static function forAction(array $methods, string $uri, Closure $action): RoutingRoute
     {
-        return new RoutingRoute($methods, $uri, ['uses' => $controller . '@__invoke', 'controller' => $controller . '@__invoke']);
+        return new RoutingRoute($methods, $uri, ['uses' => $action]);
     }
 
     public static function isOwned(RoutingRoute $route): bool

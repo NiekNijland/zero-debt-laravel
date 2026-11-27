@@ -22,8 +22,8 @@ dataset('guides that name a path that is gone', [
         'tests/AGENTS.md:1: `tests/Support/Browser/` does not exist',
     ],
     'a relative file in a guide' => [
-        ['AGENTS.md' => "Use `Notes/row-action.php` or\n`Notes/row-menu.php`.\n", 'app/Modules/Notes/row-action.php' => ''],
-        'AGENTS.md:2: no file ends in `Notes/row-menu.php`',
+        ['AGENTS.md' => "Use `Orders/row-action.php` or\n`Orders/row-menu.php`.\n", 'app/Modules/Orders/row-action.php' => ''],
+        'AGENTS.md:2: no file ends in `Orders/row-menu.php`',
     ],
     'the review rubric' => [
         ['docs/review-rubric.md' => "The list is `scripts/ci-ratchets.sh` (see `tests/Unit/GoneTest.php`).\n", 'scripts/ci-ratchets.sh' => ''],
@@ -58,7 +58,7 @@ it('accepts paths that exist, placeholders, wildcards and text that is not a pat
         'vendor/package/composer.json' => '{}',
         'storage/app/.gitignore' => '',
         'README.md' => 'Not a guide: `app/Gone.php`.',
-        'docs/notes.md' => 'Not a guide: `app/Gone.php`.',
+        'docs/orders.md' => 'Not a guide: `app/Gone.php`.',
     ]);
 
     try {

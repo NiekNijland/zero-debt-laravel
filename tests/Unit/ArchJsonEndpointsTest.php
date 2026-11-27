@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\Note\StoreController;
 use App\Http\Controllers\Web\Page\ShowController;
-use App\Modules\Notes\Data\NoteData;
+use App\Modules\Localization\Data\PageData;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
+use Illuminate\Routing\RedirectController;
 use Illuminate\Support\Facades\Response;
 use Spatie\LaravelData\Data;
 use Spatie\LaravelData\DataCollection;
@@ -47,19 +47,19 @@ it('accepts a JsonResponse built with new and a json() call on something else', 
 dataset('JsonResponse arguments and their type', [
     'an array literal' => ["return new JsonResponse(['a' => 1]);", '', ['array']],
     'an array held in a variable' => ['$rows = [1]; return new JsonResponse($rows);', '', ['array']],
-    'a new Data object ' => ['return new JsonResponse(new XData(1), 409);', '', [NoteData::class]],
-    'a variable that holds Data ' => ['$data = XData::from($x); return new JsonResponse($data);', '', [NoteData::class]],
-    'a named argument ' => ['return new JsonResponse(data: XData::from($x));', '', [NoteData::class]],
+    'a new Data object ' => ['return new JsonResponse(new XData(1), 409);', '', [PageData::class]],
+    'a variable that holds Data ' => ['$data = XData::from($x); return new JsonResponse($data);', '', [PageData::class]],
+    'a named argument ' => ['return new JsonResponse(data: XData::from($x));', '', [PageData::class]],
     'a collection with its class ' => ['return new JsonResponse(XData::collect($x, \\' . DataCollection::class . '::class));', '', [DataCollection::class]],
     'a helper that returns an array' => ["return new JsonResponse(Arr::only(\$x, ['a']));", '', [null]],
     'a parameter without a type known' => ['return new JsonResponse($x);', '', [null]],
-    'a parameter typed Data ' => ['return new JsonResponse($x);', 'XData $x', [NoteData::class]],
+    'a parameter typed Data ' => ['return new JsonResponse($x);', 'XData $x', [PageData::class]],
     'the result of a service call' => ['return new JsonResponse($this->service->run());', '', [null]],
     'no argument at all' => ['return new JsonResponse(status: 201); return new JsonResponse();', '', []],
 ]);
 
 it('reads the type of what a controller puts in its JsonResponse', function (string $body, string $parameters, array $types): void {
-    $source = "<?php namespace App\\Http\\Controllers; use Illuminate\\Http\\JsonResponse; use App\\Modules\\Notes\\Data\\NoteData as XData; use Illuminate\\Support\\Arr; final class C { public function __construct(private readonly \\stdClass \$service) {} public function __invoke({$parameters}): JsonResponse { {$body} } }";
+    $source = "<?php namespace App\\Http\\Controllers; use Illuminate\\Http\\JsonResponse; use App\\Modules\\Localization\\Data\\PageData as XData; use Illuminate\\Support\\Arr; final class C { public function __construct(private readonly \\stdClass \$service) {} public function __invoke({$parameters}): JsonResponse { {$body} } }";
     $guard = new JsonEndpointGuard(new PhpFileInspector(), dirname(__DIR__, 2), 'app', 'app/Http/Controllers');
 
     expect($guard->responseArgumentTypes($source))->toBe($types);
@@ -119,7 +119,7 @@ it('calls a bare Data object, or a union that holds a collection, bare, and a Js
 it('names the file and the controller of a route that writes a bare Data object, under a dot directory', function (): void {
     $root = SourceSandbox::create(['routes/api.php' => '<?php
 Route::post(\'a\', ' . ShowController::class . '::class);
-Route::post(\'b\', ' . StoreController::class . '::class);
+Route::post(\'b\', ' . RedirectController::class . '::class);
 '], prefix: '.checkout-');
 
     try {
@@ -132,17 +132,21 @@ Route::post(\'b\', ' . StoreController::class . '::class);
         ->and($violations[0])->toStartWith('routes/api.php: line 2: App\\Http\\Controllers\\Web\\Page\\ShowController returns a bare Data object from a route that writes');
 });
 
-it('fails a folder with no route that writes, because it has read nothing', function (): void {
-    $root = SourceSandbox::create(['routes/api.php' => "<?php\nRoute::get('a', A::class);\n"], prefix: '.checkout-');
+it('passes a folder whose routes only read, and fails a folder with no route file, because it has read nothing', function (): void {
+    $reads = SourceSandbox::create(['routes/api.php' => "<?php\nRoute::get('a', A::class);\n"], prefix: '.checkout-');
+    $nothing = SourceSandbox::create(['other/api.php' => "<?php\n"], prefix: '.checkout-');
 
     try {
-        $violations = new BareDataReturnGuard($root, 'routes')->violations();
+        $readsOnly = new BareDataReturnGuard($reads, 'routes')->violations();
+        $violations = new BareDataReturnGuard($nothing, 'routes')->violations();
     } finally {
-        SourceSandbox::remove($root);
+        SourceSandbox::remove($reads);
+        SourceSandbox::remove($nothing);
     }
 
-    expect($violations)->toHaveCount(1)
-        ->and($violations[0])->toContain('no route that writes was read');
+    expect($readsOnly)->toBe([])
+        ->and($violations)->toHaveCount(1)
+        ->and($violations[0])->toContain('no route file was read');
 });
 
 it('gives every route that writes an explicit status', function (): void {

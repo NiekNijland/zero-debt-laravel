@@ -2,7 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Models\Note;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Eloquent\MissingAttributeException;
@@ -62,20 +61,20 @@ it('allows destructive commands outside production', function (): void {
 it('reports a lazy loading violation in production instead of throwing', function (): void {
     ProductionBoot::run();
     Exceptions::fake();
-    Note::factory()->count(2)->create();
+    User::factory()->count(2)->create();
 
-    $note = Note::query()->get()->firstOrFail();
-    expect($note->user)->toBeInstanceOf(User::class);
+    $user = User::query()->get()->firstOrFail();
+    expect($user->tokens)->toBeEmpty();
 
     Exceptions::assertReported(LazyLoadingViolationException::class);
 });
 
 it('throws on a missing attribute in production too', function (): void {
     ProductionBoot::run();
-    Note::factory()->create();
-    $note = Note::query()->select('id')->firstOrFail();
+    User::factory()->create();
+    $user = User::query()->select('id')->firstOrFail();
 
-    expect(fn (): string => $note->title)->toThrow(MissingAttributeException::class);
+    expect(fn (): string => $user->email)->toThrow(MissingAttributeException::class);
 });
 
 it('checks the password against known breaches in production only', function (): void {

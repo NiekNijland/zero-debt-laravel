@@ -11,7 +11,7 @@ it('stores no moment as a plain timestamp and no structured data as plain json',
 });
 
 it('stores a moment as timestamptz', function (): void {
-    $type = DB::table('information_schema.columns')->where('table_name', 'notes')->where('column_name', 'created_at')->value('data_type');
+    $type = DB::table('information_schema.columns')->where('table_name', 'users')->where('column_name', 'created_at')->value('data_type');
 
     expect($type)->toBe('timestamp with time zone');
 });

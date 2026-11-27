@@ -38,7 +38,7 @@ final class GuardShapeArchitectureHelpers
             'tests/Support/Architecture/FooGuard.php' => self::detector(),
             'tests/Unit/FooArchitectureTest.php' => self::test(),
             'tests/Feature/Placeholder.txt' => 'x',
-            'app/Models/Note.php' => '<?php',
+            'app/Models/Invoice.php' => '<?php',
             'composer.json' => '{}',
             ...$files,
         ];

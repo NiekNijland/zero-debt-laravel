@@ -2,39 +2,49 @@
 
 declare(strict_types=1);
 
-use App\Models\Note;
-use App\Modules\Notes\Enums\NotePermission;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Route;
 use Tests\Support\Users;
 
-it('translates the validation message by the locale header', function (): void {
-    Users::signedIn(NotePermission::CREATE);
+beforeEach(function (): void {
+    Route::prefix('api/v1')->middleware(['api', 'auth:sanctum'])->group(static function (): void {
+        Route::post('probe', static function (Request $request): string {
+            $request->validate(['title' => ['required']]);
 
-    $this->withHeader('X-Locale', 'nl')->postJson(route('notes.store'), [])
+            return 'ok';
+        })->name('probe.store');
+        Route::get('probe', static fn (): string => 'ok')->middleware('can:probe.view')->name('probe.show');
+    });
+    Route::getRoutes()->refreshNameLookups();
+});
+
+it('translates the validation message by the locale header', function (): void {
+    Users::signedIn();
+
+    $this->withHeader('X-Locale', 'nl')->postJson(route('probe.store'), [])
         ->assertUnprocessable()
         ->assertJsonPath('errors.title.0', 'titel is verplicht.');
 });
 
 it('falls back to the accept language header', function (): void {
-    Users::signedIn(NotePermission::CREATE);
+    Users::signedIn();
 
-    $this->withHeader('Accept-Language', 'nl')->postJson(route('notes.store'), [])
+    $this->withHeader('Accept-Language', 'nl')->postJson(route('probe.store'), [])
         ->assertJsonPath('errors.title.0', 'titel is verplicht.');
 });
 
 it('falls back to the configured locale', function (): void {
-    Users::signedIn(NotePermission::CREATE);
+    Users::signedIn();
 
-    $this->postJson(route('notes.store'), [])->assertJsonPath('errors.title.0', 'title is required.');
+    $this->postJson(route('probe.store'), [])->assertJsonPath('errors.title.0', 'title is required.');
 });
 
 it('translates the unauthenticated message', function (): void {
-    $this->withHeader('X-Locale', 'nl')->getJson(route('notes.index'))->assertUnauthorized()->assertJsonPath('message', 'Niet ingelogd.');
+    $this->withHeader('X-Locale', 'nl')->getJson(route('probe.show'))->assertUnauthorized()->assertJsonPath('message', 'Niet ingelogd.');
 });
 
 it('translates the unauthorized message', function (): void {
-    $user = Users::signedIn(NotePermission::VIEW);
-    $note = Note::factory()->create();
+    Users::signedIn();
 
-    $this->withHeader('X-Locale', 'nl')->getJson(route('notes.show', $note))->assertForbidden()->assertJsonPath('message', 'Deze actie is niet toegestaan.');
-    expect($user->id)->toBeInt();
+    $this->withHeader('X-Locale', 'nl')->getJson(route('probe.show'))->assertForbidden()->assertJsonPath('message', 'Deze actie is niet toegestaan.');
 });

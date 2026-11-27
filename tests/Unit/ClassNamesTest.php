@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-use App\Modules\Notes\Enums\NoteStatus;
+use App\Modules\Localization\Enums\Locale;
 use Illuminate\Support\Traits\Macroable;
 use Tests\Support\ClassNames;
 
@@ -13,7 +13,7 @@ it('accepts the name of a class, an interface, an enum and a trait', function (s
 })->with([
     'a class' => [ArrayObject::class],
     'an interface' => [Countable::class],
-    'an enum' => [NoteStatus::class],
+    'an enum' => [Locale::class],
     'a trait' => [Macroable::class],
 ]);
 

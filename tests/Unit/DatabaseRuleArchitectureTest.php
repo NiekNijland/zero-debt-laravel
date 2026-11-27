@@ -13,9 +13,9 @@ uses()->group('arch');
 dataset('database rules that skip the model', [
     'a table name' => ["<?php\nuse Illuminate\\Validation\\Rule;\n\$r = Rule::exists('users', 'id');\n", 'without a model class'],
     'a table name by the fully qualified facade' => ['<?php
-$r = ' . Rule::class . '::unique(\'notes\', \'title\');
+$r = ' . Rule::class . '::unique(\'invoices\', \'title\');
 ', 'without a model class'],
-    'the table of a new model' => ["<?php\nuse App\\Models\\Note;\nuse Illuminate\\Validation\\Rule;\n\$r = Rule::exists(new Note()->getTable(), 'id');\n", 'without a model class'],
+    'the table of a new model' => ["<?php\nuse App\\Models\\Invoice;\nuse Illuminate\\Validation\\Rule;\n\$r = Rule::exists(new Invoice()->getTable(), 'id');\n", 'without a model class'],
     'a class that is not a model' => ["<?php\nuse Illuminate\\Validation\\Rule;\n\$r = Rule::exists(Rule::class, 'id');\n", 'without a model class'],
     'a class that does not exist' => ["<?php\nuse Illuminate\\Validation\\Rule;\n\$r = Rule::unique(App\\Models\\Missing::class, 'id');\n", 'without a model class'],
     'a variable' => ["<?php\nuse Illuminate\\Validation\\Rule;\n\$r = Rule::unique(\$model, 'id');\n", 'without a model class'],
@@ -23,7 +23,7 @@ $r = ' . Rule::class . '::unique(\'notes\', \'title\');
     'a rule object built by hand' => ["<?php\nuse Illuminate\\Validation\\Rules\\Exists;\n\$r = new Exists('users', 'id');\n", 'new Exists()'],
     'a unique rule object built by hand and fully qualified' => ["<?php\n\$r = new \\Illuminate\\Validation\\Rules\\Unique('users', 'email');\n", 'new Unique()'],
     'a string rule' => ["<?php\n\$rules = ['locale' => ['required', 'exists:locales,code']];\n", "the string rule 'exists:'"],
-    'a string rule in double quotes after a pipe' => ["<?php\n\$rules = ['name' => \"required|unique:notes,title\"];\n", "the string rule 'unique:'"],
+    'a string rule in double quotes after a pipe' => ["<?php\n\$rules = ['name' => \"required|unique:invoices,title\"];\n", "the string rule 'unique:'"],
     'a string rule with an interpolated table' => ["<?php\n\$rules = ['id' => [\"exists:{\$table},id\"]];\n", "the string rule 'exists:'"],
 ]);
 
@@ -38,13 +38,12 @@ it('detects an existence or uniqueness rule that skips the model class', functio
 it('accepts a rule on a model class and the near misses of a string rule', function (): void {
     $source = <<<'PHP'
         <?php
-        use App\Models\Note;
         use App\Models\User;
         use Illuminate\Support\Facades\Storage;
         use Illuminate\Validation\Rule;
         $rules = [
             Rule::exists(User::class, 'id'),
-            Rule::unique(Note::class, 'title')->ignore($id),
+            Rule::unique(User::class, 'email')->ignore($id),
             Rule::in(['unique', 'exists']),
             'in:exists,unique',
             'required_unless:exists,1',

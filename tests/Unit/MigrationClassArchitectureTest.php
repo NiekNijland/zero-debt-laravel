@@ -2,21 +2,21 @@
 
 declare(strict_types=1);
 
-use App\Modules\Notes\Enums\NotePermission;
+use App\Modules\Localization\Enums\Locale;
 use Tests\Support\Architecture\MigrationClassGuard;
 use Tests\Support\SourceSandbox;
 
 uses()->group('arch');
 
 dataset('migrations that name a class', [
-    'the live permission enum' => ["<?php\nuse App\\Modules\\Notes\\Enums\\NotePermission;\n", 'the live permission or role class'],
-    'a live permission case' => ["<?php\n\$a = NotePermission::VIEW;\n", 'write the name as a string'],
+    'the live enum' => ["<?php\nuse App\\Modules\\Localization\\Enums\\Locale;\n", 'the live permission or role class'],
+    'a live enum case' => ["<?php\n\$a = Locale::EN;\n", 'write the name as a string'],
     'an application class' => ["<?php\nuse App\\Models\\Order;\n", 'names an application class'],
     'an application class in a call' => ["<?php\n\$a = \\App\\Support\\Json::decode(\$x);\n", 'names an application class'],
 ]);
 
 it('detects a migration that names an application class', function (string $source, string $words): void {
-    $messages = new MigrationClassGuard(dirname(__DIR__, 2), 'database/migrations', [NotePermission::class], 'App\\')->inSource($source);
+    $messages = new MigrationClassGuard(dirname(__DIR__, 2), 'database/migrations', [Locale::class], 'App\\')->inSource($source);
 
     expect($messages)->not->toBe([])
         ->and($messages[0])->toContain($words);
@@ -26,11 +26,11 @@ dataset('migrations that name no class', [
     'a plain migration' => ["<?php\nuse Illuminate\\Database\\Migrations\\Migration;\nreturn new class extends Migration {};\n"],
     'a word that ends like the namespace' => ["<?php\n\$a = 'MyApp\\\\Models';\n"],
     'a role as a string' => ["<?php\nDB::table('roles')->insert(['name' => 'admin']);\n"],
-    'a class that ends in the name of the enum' => ["<?php\n\$a = OtherNotePermission::class;\n"],
+    'a class that ends in the name of the enum' => ["<?php\n\$a = OtherLocale::class;\n"],
 ]);
 
 it('accepts a migration that names no application class', function (string $source): void {
-    expect(new MigrationClassGuard(dirname(__DIR__, 2), 'database/migrations', [NotePermission::class], 'App\\')->inSource($source))->toBe([]);
+    expect(new MigrationClassGuard(dirname(__DIR__, 2), 'database/migrations', [Locale::class], 'App\\')->inSource($source))->toBe([]);
 })->with('migrations that name no class');
 
 it('names the file of a migration that names a class, in a checkout under a dot directory, and fails on an empty folder', function (): void {
@@ -41,8 +41,8 @@ it('names the file of a migration that names a class, in a checkout under a dot 
     ], prefix: '.checkout-');
 
     try {
-        $violations = new MigrationClassGuard($root, 'database/migrations', [NotePermission::class], 'App\\')->violations();
-        $empty = new MigrationClassGuard($root, 'empty', [NotePermission::class], 'App\\')->violations();
+        $violations = new MigrationClassGuard($root, 'database/migrations', [Locale::class], 'App\\')->violations();
+        $empty = new MigrationClassGuard($root, 'empty', [Locale::class], 'App\\')->violations();
     } finally {
         SourceSandbox::remove($root);
     }
@@ -54,10 +54,10 @@ it('names the file of a migration that names a class, in a checkout under a dot 
 });
 
 it('throws on a migration folder that does not exist', function (): void {
-    expect(fn (): array => new MigrationClassGuard(dirname(__DIR__, 2), 'database/renamed-migrations', [NotePermission::class], 'App\\')->violations())
+    expect(fn (): array => new MigrationClassGuard(dirname(__DIR__, 2), 'database/renamed-migrations', [Locale::class], 'App\\')->violations())
         ->toThrow(InvalidArgumentException::class, 'does not exist');
 });
 
 it('keeps application classes out of the migrations', function (): void {
-    expect(new MigrationClassGuard(dirname(__DIR__, 2), 'database/migrations', [NotePermission::class], 'App\\')->violations())->toBe([]);
+    expect(new MigrationClassGuard(dirname(__DIR__, 2), 'database/migrations', [Locale::class], 'App\\')->violations())->toBe([]);
 });

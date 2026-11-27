@@ -8,9 +8,7 @@ use Carbon\CarbonImmutable;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
-use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Laravel\Sanctum\HasApiTokens;
 use Override;
@@ -23,7 +21,6 @@ use Spatie\Permission\Traits\HasRoles;
  * @property string $password
  * @property CarbonImmutable $created_at
  * @property CarbonImmutable $updated_at
- * @property-read Collection<int, Note> $notes
  */
 #[Fillable(['name', 'email', 'password'])]
 #[Hidden(['password'])]
@@ -35,14 +32,6 @@ final class User extends Authenticatable
     use HasFactory;
 
     use HasRoles;
-
-    /**
-     * @return HasMany<Note, $this>
-     */
-    public function notes(): HasMany
-    {
-        return $this->hasMany(Note::class);
-    }
 
     /**
      * @return array<string, string>

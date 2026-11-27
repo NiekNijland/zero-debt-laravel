@@ -244,8 +244,8 @@ it('detects a route parameter that is not camelCase', function (string $source, 
 
 it('reads the route files of a checkout under a dot directory for parameters', function (): void {
     $root = SourceSandbox::create([
-        'routes/a.php' => "<?php\nRoute::get('notes/{note_id}', Note\\ShowController::class);\n",
-        'routes/b.php' => "<?php\nRoute::get('notes/{note}', Note\\ShowController::class);\n",
+        'routes/a.php' => "<?php\nRoute::get('invoices/{invoice_id}', Invoice\\ShowController::class);\n",
+        'routes/b.php' => "<?php\nRoute::get('invoices/{invoice}', Invoice\\ShowController::class);\n",
     ], prefix: '.checkout-');
 
     try {
@@ -255,7 +255,7 @@ it('reads the route files of a checkout under a dot directory for parameters', f
     }
 
     expect($violations)->toHaveCount(1)
-        ->and($violations[0])->toStartWith('routes/a.php:2: the route parameter {note_id} is not camelCase: name it {noteId}');
+        ->and($violations[0])->toStartWith('routes/a.php:2: the route parameter {invoice_id} is not camelCase: name it {invoiceId}');
 });
 
 it('names every route parameter in camelCase', function (): void {

@@ -61,6 +61,6 @@ it('reads the module folders of a tree under a dot directory', function (): void
 it('has one module per domain, never two that differ only by a plural or a prefix', function (): void {
     $guard = new ModuleOverlapGuard(dirname(__DIR__, 2), 'app/Modules');
 
-    expect($guard->modules())->toContain('Notes', 'Localization')
+    expect($guard->modules())->toContain('Localization')
         ->and($guard->violations())->toBe([]);
 });

@@ -63,7 +63,7 @@ it('allows a URL that no named route has, or that is written out on purpose', fu
 })->with('urls a test may write out');
 
 it('reads the named routes of the application', function (): void {
-    expect(collect(NamedRouteUrlArchitectureHelpers::namedRoutes())->firstWhere('name', 'notes.show'))->toBe(['methods' => ['GET', 'HEAD'], 'uri' => 'api/v1/notes/{note}', 'name' => 'notes.show']);
+    expect(collect(NamedRouteUrlArchitectureHelpers::namedRoutes())->firstWhere('name', 'pages.show'))->toBe(['methods' => ['GET', 'HEAD'], 'uri' => '{locale}/{slug}', 'name' => 'pages.show']);
 });
 
 it('sends every request to a named route through route()', function (): void {

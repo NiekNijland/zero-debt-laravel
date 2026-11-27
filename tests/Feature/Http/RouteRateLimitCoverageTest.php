@@ -2,8 +2,6 @@
 
 declare(strict_types=1);
 
-use App\Http\Controllers\Api\Note\IndexController;
-use App\Http\Controllers\Api\Note\StoreController;
 use Illuminate\Routing\Route as RoutingRoute;
 use Tests\Support\ApplicationRoutes;
 use Tests\Support\Feature\Http\RouteRateLimitCoverageHelpers;
@@ -13,8 +11,8 @@ it('puts every route of the application behind one registered limiter, the write
 });
 
 it('reports a route that slips through without a named limiter', function (): void {
-    $read = static fn (string ...$middleware): RoutingRoute => ApplicationRoutes::forController(['GET', 'HEAD'], 'notes', IndexController::class)->middleware($middleware);
-    $write = static fn (string ...$middleware): RoutingRoute => ApplicationRoutes::forController(['POST'], 'notes', StoreController::class)->middleware($middleware);
+    $read = static fn (string ...$middleware): RoutingRoute => ApplicationRoutes::forAction(['GET', 'HEAD'], 'users', static fn (): string => '')->middleware($middleware);
+    $write = static fn (string ...$middleware): RoutingRoute => ApplicationRoutes::forAction(['POST'], 'users', static fn (): string => '')->middleware($middleware);
 
     expect(RouteRateLimitCoverageHelpers::problem($read(), ['write']))->toBe('has no throttle:<name> limiter')
         ->and(RouteRateLimitCoverageHelpers::problem($read('throttle:60,1'), ['write']))->toBe('uses 60,1, which is not a limiter registered in the rate-limit provider')

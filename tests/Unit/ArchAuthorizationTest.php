@@ -26,12 +26,12 @@ it('detects a role name that is checked in application code', function (string $
 })->with('role names that are checked');
 
 dataset('role checks and near misses that pass', [
-    'a permission check' => ["<?php\n\$user->can('notes.view');\n"],
-    'a permission middleware' => ["<?php\nRoute::get('/x', X::class)->middleware('permission:notes.view');\n"],
-    'a can middleware' => ["<?php\nRoute::get('/x', X::class)->middleware('can:view,note');\n"],
+    'a permission check' => ["<?php\n\$user->can('invoices.view');\n"],
+    'a permission middleware' => ["<?php\nRoute::get('/x', X::class)->middleware('permission:invoices.view');\n"],
+    'a can middleware' => ["<?php\nRoute::get('/x', X::class)->middleware('can:view,invoice');\n"],
     'a method that only starts like a role check' => ["<?php\n\$user->hasRoleLabel();\n"],
     'a text that mentions the word role' => ["<?php\n\$a = 'the role: admin is shown';\n"],
-    'a permission check by the spatie method' => ["<?php\n\$user->hasPermissionTo('notes.view');\n"],
+    'a permission check by the spatie method' => ["<?php\n\$user->hasPermissionTo('invoices.view');\n"],
 ]);
 
 it('accepts a permission check and the near misses of a role check', function (string $source): void {

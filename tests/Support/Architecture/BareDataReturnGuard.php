@@ -29,20 +29,20 @@ final readonly class BareDataReturnGuard
     public function violations(): array
     {
         $violations = [];
-        $checked = 0;
+        $files = 0;
 
         foreach (Globs::of($this->root . '/' . $this->routes . '/*.php') as $file) {
-            foreach (PhpCallReader::nonGetRouteControllers($file) as $route) {
-                $checked++;
+            $files++;
 
+            foreach (PhpCallReader::nonGetRouteControllers($file) as $route) {
                 if (class_exists($route['controller']) && $this->isBare($this->invokeReturnType($route['controller']))) {
                     $violations[] = mb_substr($file, mb_strlen($this->root) + 1) . ': line ' . $route['line'] . ': ' . $route['controller'] . ' returns a bare Data object from a route that writes: return it in a JsonResponse with an explicit status';
                 }
             }
         }
 
-        if ($checked === 0) {
-            $violations[] = $this->routes . ': no route that writes was read, so the guard has read nothing: is the folder renamed?';
+        if ($files === 0) {
+            $violations[] = $this->routes . ': no route file was read, so the guard has read nothing: is the folder renamed?';
         }
 
         return $violations;

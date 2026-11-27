@@ -2,11 +2,11 @@
 
 declare(strict_types=1);
 
-use App\Models\Note;
-use App\Modules\Notes\Enums\NotePermission;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Auth\Authenticatable;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
+use Illuminate\Support\Facades\Route;
 use Tests\Support\Providers\Limiters;
 use Tests\Support\Users;
 
@@ -36,10 +36,10 @@ it('keys the limit by user and falls back to the ip', function (): void {
 
 it('answers too many requests above the limit', function (): void {
     config(['rate-limits.write' => 1]);
-    $user = Users::signedIn(NotePermission::DELETE);
-    $first = Note::factory()->for($user)->create();
-    $second = Note::factory()->for($user)->create();
+    Route::prefix('api/v1')->middleware(['api', 'auth:sanctum', 'throttle:write'])->delete('probe', static fn (): Response => response()->noContent())->name('probe.destroy');
+    Route::getRoutes()->refreshNameLookups();
+    Users::signedIn();
 
-    $this->deleteJson(route('notes.destroy', $first))->assertNoContent();
-    $this->deleteJson(route('notes.destroy', $second))->assertTooManyRequests();
+    $this->deleteJson(route('probe.destroy'))->assertNoContent();
+    $this->deleteJson(route('probe.destroy'))->assertTooManyRequests();
 });

@@ -13,7 +13,7 @@ dataset('guards that break the shape', [
     'a detector with the path of a folder' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'app/Models';")], 'FooGuard.php: the literal "app/Models" names a path of the repository'],
     'a detector with a folder under a leading slash' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return '/app';")], 'the literal "/app" names a path of the repository'],
     'a detector with the name of a file' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'composer.json';")], 'the literal "composer.json" names a path of the repository'],
-    'a detector with a path in a concatenation' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return \$this->root . '/app/Models/Note.php';")], 'names a path of the repository'],
+    'a detector with a path in a concatenation' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return \$this->root . '/app/Models/Invoice.php';")], 'names a path of the repository'],
     'a detector with a path in an interpolated string' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector('return "{$this->root}/composer.json";')], 'the literal "/composer.json" names a path of the repository'],
     'a detector that no test names' => [['tests/Unit/FooArchitectureTest.php' => "<?php\narch('x')->expect('App')->toBeClasses();\n"], 'FooGuard is named by no guard test'],
     'a detector whose name ends in Helpers' => [['tests/Support/Architecture/FooHelpers.php' => GuardShapeArchitectureHelpers::detector(name: 'FooHelpers')], 'FooHelpers ends in Helpers or Scenario'],
@@ -50,7 +50,7 @@ dataset('guards that keep the shape', [
     'a sentence that names a folder' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'put it in app/Models please';")]],
     'a relative prefix' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return str_starts_with(\$uses, './') || str_starts_with(\$uses, '../');")]],
     'a glob' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'app/*.php';")]],
-    'a class name' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'App\\\\Models\\\\Note';")]],
+    'a class name' => [['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector("return 'App\\\\Models\\\\Invoice';")]],
     'a reader class that is no guard and no test names' => [['tests/Support/Architecture/FooReader.php' => GuardShapeArchitectureHelpers::detector(name: 'FooReader')]],
     'a test that names no guard' => [['tests/Unit/OtherTest.php' => "<?php\narch('x')->expect('App')->toBeClasses();\n"]],
     'a guard imported under an alias' => [['tests/Unit/FooArchitectureTest.php' => GuardShapeArchitectureHelpers::test(import: "<?php\nuse Tests\\Support\\Architecture\\FooGuard as Foo;\nuses()->group('arch');\n")]],
@@ -71,7 +71,7 @@ it('reads a checkout under a dot directory and names the files relative to the r
 });
 
 it('fails on a guard folder or a test folder that does not exist', function (): void {
-    $files = ['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector(), 'app/Models/Note.php' => '<?php'];
+    $files = ['tests/Support/Architecture/FooGuard.php' => GuardShapeArchitectureHelpers::detector(), 'app/Models/Invoice.php' => '<?php'];
 
     expect(static fn (): array => GuardShapeArchitectureHelpers::violations($files))->toThrow(InvalidArgumentException::class, 'does not exist');
 });
