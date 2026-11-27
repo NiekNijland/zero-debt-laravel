@@ -41,7 +41,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U laravel"
+          --health-cmd "pg_isready -h 127.0.0.1 -U laravel"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - name: Check out the merge of the pull request, with full history
@@ -118,7 +118,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U laravel"
+          --health-cmd "pg_isready -h 127.0.0.1 -U laravel"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - name: Check out the branch, with full history
@@ -168,7 +168,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U laravel"
+          --health-cmd "pg_isready -h 127.0.0.1 -U laravel"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - name: Check out the merge of the pull request, with full history
@@ -233,7 +233,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U laravel"
+          --health-cmd "pg_isready -h 127.0.0.1 -U laravel"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - name: Check out the merge of the pull request, with full history
@@ -325,7 +325,7 @@ jobs:
         ports:
           - 5432:5432
         options: >-
-          --health-cmd "pg_isready -U laravel"
+          --health-cmd "pg_isready -h 127.0.0.1 -U laravel"
           --health-interval 5s --health-timeout 5s --health-retries 12
     steps:
       - name: Check out the default branch, with full history

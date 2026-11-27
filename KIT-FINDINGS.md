@@ -4,7 +4,8 @@ Problems found in the zero-debt kit while building this starter, checked against
 
 ## Open
 
-None.
+P8-1. **A database service health check by socket passes during the first-run init of the image.** The skeleton's `pg_isready -U <user>` health command (and a compose healthcheck of the same form) answered "accepting connections" for about a second while the image's temporary init server, which listens on the unix socket only, was running, and then the server restarted. A job that starts at that moment fails every connection ("the database system is starting up" or "server closed the connection unexpectedly"). Repro: `docker run -d --name hc -e POSTGRES_USER=u -e POSTGRES_PASSWORD=p -e POSTGRES_DB=d postgres:17`, then once a second run `docker exec hc pg_isready -U u` next to `docker exec hc pg_isready -h 127.0.0.1 -U u`: the first printed "accepting connections" at second 28 while the second printed "no response" until second 35. The starter uses the TCP form `pg_isready -h 127.0.0.1 -U <user>`; the skeleton should too.
+P8-2. **`.gitattributes` of the Laravel skeleton marks `/.github export-ignore`, which breaks a template.** A zip, `git archive` or `composer create-project` copy then lacks the workflows and the code owners file, which a template script needs. Repro: `git archive HEAD | tar -t | grep -c '^.github/'` prints 0 on a copy of the skeleton. The kit's docs on a template or starter should say to drop that line; the starter did.
 
 ## Resolved in kit b24b2b5
 

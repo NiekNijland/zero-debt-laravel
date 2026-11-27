@@ -10,7 +10,7 @@ services:
     volumes:
       - database:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD", "pg_isready", "-U", "laravel"]
+      test: ["CMD", "pg_isready", "-h", "127.0.0.1", "-U", "laravel"]
       interval: 5s
       timeout: 5s
       retries: 12
