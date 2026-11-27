@@ -1,10 +1,19 @@
 # Kit findings
 
-Problems found in the zero-debt kit while building this starter, checked against kit commit 46be617 (kit 0.12.x; the starter is pinned to it in `.zero-debt-kit-version`). The kit was not changed by this repository. Each open finding has a reproduction that was run against 46be617. The numbers are the ones of earlier revisions of this file (the first run was against cfb4405), so a reference in a commit message still finds its entry.
+Problems found in the zero-debt kit while building this starter, checked against kit commit 425621c (kit 0.12.x, unreleased changes after 0.12.0; the starter is pinned to it in `.zero-debt-kit-version`). The kit was not changed by this repository. Each open finding has a reproduction that was run against 425621c. The numbers are the ones of earlier revisions of this file (the first run was against cfb4405), so a reference in a commit message still finds its entry.
 
 ## Open
 
 None.
+
+## Resolved in kit 425621c
+
+Re-verified against 425621c (a scratchpad clone of the public kit at that commit; the starter's scripts followed with the doctor in the commit of this pin).
+
+- P10-1. `doctor.sh --upgrade-plan --apply` brought `ci-ratchets.sh` and `debt-dashboard.sh` to the kit's bodies and nothing else (`Applied: scripts/ changed: ci-ratchets.sh debt-dashboard.sh`), kept the EXTRA and CASES lines of the six rows the project defined (`coverage-floor`, `mutation-floor`, `strict-types-missing`, `guide-future-tense`, `cap-autoload-conformance`, `cap-ci-duration-minutes`), carried no ratchet row (so no `[ratchet: <row>]` line was printed), and ended with "Dashboard run offline before and after --apply: no row moved up". The self-test prints `382 cases run, 0 wrong`, the number the README of the kit names.
+- P10-2. A tag line in a commit body counts: the commit of this starter that instantiates a template copy carries `[ratchet: script] instantiate the template` on a line of its own, and the gate of `scripts/checks.sh` printed "allowed by <sha>: instantiate the template" for `.github/CODEOWNERS`, `scripts/ci-commit-messages.sh` and `.github/workflows` (a scratch repository with a base commit and a branch; the whole run was green).
+- P10-3. The dashboard measures a tree without `vendor`: `bash scripts/debt-dashboard.sh --final --offline` on a copy without `vendor` exits 0 (`64 rows: 58 at target or held, 0 open, 0 not measured, 6 skipped`); the online run on that copy measured every row (63 at target or held) except `ci-duration-minutes`, which printed `UNKNOWN (could not be measured)` because the scratch repository has no GitHub remote.
+- Note, not a defect: the guide of the kit (`04-guards.md`, "A rule about something that does not exist yet") says that a Pest `arch()` over a wildcard namespace of which no folder exists throws `DirectoryNotFoundException`. The starter had three such rules over `App\Modules\*\Actions`; they only surfaced when `scripts/init.sh` began to remove the demo module, and they now take their namespaces from `tests/Support/ModuleNamespaces.php` (the union of the folders that exist, an empty list when none does). The kit's advice (add the rule in the PR of the first class of that folder) would have avoided it; the starter keeps its rules and a helper.
 
 ## Resolved in kit 46be617
 

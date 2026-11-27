@@ -140,6 +140,7 @@ OPEN=0
 UNKNOWN=0
 SKIPPED=0
 MEASURED=" "
+NOT_MEASURED=""
 DETAIL_FILE=$(mktemp)
 trap 'rm -f "$DETAIL_FILE"' EXIT
 
@@ -253,6 +254,7 @@ measured_row() {
     if [ "$FINAL" -eq 1 ] && [ "$cap" != "?" ] && ! listed "cap-$name" "$SHRINK_ONLY"; then
         target=0
     fi
+    [[ "$now" =~ ^[0-9]+$ ]] || [ -z "$NOT_MEASURED" ] || note="not measured: $NOT_MEASURED"
     [[ "$now" =~ ^[0-9]+$ ]] || note="${note:-could not be measured}"
     if [ "$FINAL" -eq 1 ] && [ "$cap" != "?" ] && listed "cap-$name" "$SHRINK_ONLY"; then
         hint="shrink-only by a decision row: held to the cap"
@@ -306,6 +308,35 @@ open_classes() {
     [ -n "$OPEN_CLASS" ] || return 0
     printf '%s\n' "$files" | tr '\n' '\0' | xargs -0 grep -l -E -e "$OPEN_CLASS" 2> /dev/null
     return 0
+}
+
+# folder_missing <name>: succeeds when the folder is absent or empty. A folder that was never installed is no measurement.
+folder_missing() {
+    [ -d "$1" ] || return 0
+    [ -z "$(ls -A "$1" 2> /dev/null)" ]
+}
+
+# missing_input <command>: prints what a command row needs and does not find. A command that reads the installed packages
+# (npm outdated, vendor/bin/...) prints an empty list when the folder is missing, and the row would read 0: a false zero, never a
+# measurement. A command that reads the lock file (composer outdated --locked, npm audit) needs no folder.
+missing_input() {
+    # A package manager that is not installed prints nothing, and a sum of two counts ($(( a + b ))) reads the empty one as 0.
+    local manager
+    for manager in composer npm pnpm yarn; do
+        if printf '%s' "$1" | grep -E -q "(^|[|&;(\`[:space:]])$manager[[:space:]]" && ! command -v "$manager" > /dev/null 2>&1; then
+            printf '%s is not installed on this machine' "$manager"
+            return 0
+        fi
+    done
+    if printf '%s' "$1" | grep -E -q '(^|[^A-Za-z-])(npm|pnpm|yarn)[[:space:]]+(outdated|ls|list)([^A-Za-z-]|$)|(^|[^A-Za-z-])npx[[:space:]]|node_modules/' && folder_missing node_modules; then
+        printf 'node_modules is missing or empty: install the dependencies first'
+        return 0
+    fi
+    if { printf '%s' "$1" | grep -E -q 'vendor/bin/' || { printf '%s' "$1" | grep -E -q '(^|[^A-Za-z-])composer[[:space:]]+(outdated|show)([^A-Za-z-]|$)' && ! printf '%s' "$1" | grep -q -e '--locked'; }; } && folder_missing vendor; then
+        printf 'vendor is missing or empty: install the dependencies first'
+        return 0
+    fi
+    return 1
 }
 
 min_target() {
@@ -568,14 +599,23 @@ for entry in ${COMMAND_ROWS[@]+"${COMMAND_ROWS[@]}"}; do
         skipped_row command "$name" "--offline"
         continue
     fi
-    now=$(bash -c "$command" 2> /dev/null)
+    NOT_MEASURED=$(missing_input "$command")
+    if [ -n "$NOT_MEASURED" ]; then
+        now="?"
+    else
+        now=$(bash -c "$command" 2> /dev/null)
+    fi
     # One whole number on one line: "1" and "2" on two lines are not 12.
     if [[ "$now" =~ ^[[:space:]]*[0-9]+[[:space:]]*$ ]]; then now="${now//[[:space:]]/}"; else now="?"; fi
     if [ "$when" = "shown" ]; then
         TOTAL=$((TOTAL + 1))
         MEASURED="$MEASURED$name "
         [[ "$now" =~ ^[0-9]+$ ]] || now="?"
-        print_row command "$name" "$now" "-" "shown (never fails)"
+        if [ "$now" = "?" ] && [ -n "$NOT_MEASURED" ]; then
+            print_row command "$name" "$now" "-" "not measured ($NOT_MEASURED; never fails)"
+        else
+            print_row command "$name" "$now" "-" "shown (never fails)"
+        fi
     elif [ "$(advice "$name")" = "$(advice "")" ]; then
         TOTAL=$((TOTAL + 1))
         UNKNOWN=$((UNKNOWN + 1))
@@ -584,6 +624,7 @@ for entry in ${COMMAND_ROWS[@]+"${COMMAND_ROWS[@]}"}; do
     else
         measured_row command "$name" "$now"
     fi
+    NOT_MEASURED=""
     detail "$name is counted by" "$command"
 done
 
